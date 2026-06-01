@@ -8,13 +8,12 @@ import com.nuvio.tv.data.remote.dto.trakt.TraktMovieDto
 import com.nuvio.tv.data.remote.dto.trakt.TraktScrobbleRequestDto
 import com.nuvio.tv.data.remote.dto.trakt.TraktShowDto
 import javax.inject.Inject
-import javax.inject.Named
 import javax.inject.Singleton
 
 // [FORK] Direct scrobble service — sends to custom endpoint, no Trakt auth required
 @Singleton
 class DirectScrobbleService @Inject constructor(
-    @Named("direct") private val api: DirectScrobbleApi
+    private val api: DirectScrobbleApi
 ) {
     companion object {
         private const val TAG = "DirectScrobbleSvc"
