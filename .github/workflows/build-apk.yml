@@ -33,7 +33,7 @@ jobs:
         run: |
           TIMESTAMP=$(date -u +'%m%d%Y-%H%M')
           APK_NAME="NuvioFork-${TIMESTAMP}.apk"
-          cp app/build/outputs/apk/full/release/*.apk "${APK_NAME}"
+          cp app/build/outputs/apk/full/release/app-full-universal-release.apk "${APK_NAME}"
           echo "name=${APK_NAME}" >> "$GITHUB_OUTPUT"
 
       - name: Upload APK
