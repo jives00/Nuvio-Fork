@@ -4,6 +4,7 @@ import android.content.Context
 import android.util.Log
 import com.nuvio.tv.BuildConfig
 import com.nuvio.tv.data.remote.api.AddonApi
+import com.nuvio.tv.data.remote.api.DirectScrobbleApi
 import com.nuvio.tv.data.remote.api.AniSkipApi
 import com.nuvio.tv.data.remote.api.AnimeSkipApi
 import com.nuvio.tv.data.remote.api.ArmApi
@@ -511,6 +512,27 @@ object NetworkModule {
     @Singleton
     fun provideSeriesGraphApi(@Named("seriesGraph") retrofit: Retrofit): SeriesGraphApi =
         retrofit.create(SeriesGraphApi::class.java)
+
+    // [FORK] Direct scrobble Retrofit instance — base URL from BuildConfig, no Trakt headers
+    @Provides
+    @Singleton
+    @Named("direct")
+    fun provideDirectScrobbleRetrofit(okHttpClient: OkHttpClient, moshi: Moshi): Retrofit =
+        Retrofit.Builder()
+            .baseUrl(
+                BuildConfig.SCROBBLE_API_URL
+                    .trim()
+                    .let { if (it.isNotBlank()) if (it.endsWith('/')) it else "$it/" else "https://localhost/" }
+            )
+            .client(okHttpClient)
+            .addConverterFactory(MoshiConverterFactory.create(moshi))
+            .build()
+
+    // [FORK]
+    @Provides
+    @Singleton
+    fun provideDirectScrobbleApi(@Named("direct") retrofit: Retrofit): DirectScrobbleApi =
+        retrofit.create(DirectScrobbleApi::class.java)
 
     @Provides
     @Singleton

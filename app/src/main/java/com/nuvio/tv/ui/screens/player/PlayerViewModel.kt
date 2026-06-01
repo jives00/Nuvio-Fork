@@ -17,6 +17,7 @@ import com.nuvio.tv.data.local.StreamLinkCacheDataStore
 import com.nuvio.tv.data.repository.ParentalGuideRepository
 import com.nuvio.tv.data.repository.SkipIntroRepository
 import com.nuvio.tv.data.repository.TraktEpisodeMappingService
+import com.nuvio.tv.data.repository.DirectScrobbleService
 import com.nuvio.tv.data.repository.TraktScrobbleService
 import com.nuvio.tv.domain.repository.AddonRepository
 import com.nuvio.tv.domain.repository.MetaRepository
@@ -41,6 +42,7 @@ class PlayerViewModel @Inject constructor(
     private val subtitleRepository: com.nuvio.tv.domain.repository.SubtitleRepository,
     private val parentalGuideRepository: ParentalGuideRepository,
     private val traktScrobbleService: TraktScrobbleService,
+    private val directScrobbleService: DirectScrobbleService, // [FORK]
     private val traktEpisodeMappingService: TraktEpisodeMappingService,
     private val skipIntroRepository: SkipIntroRepository,
     private val playerSettingsDataStore: PlayerSettingsDataStore,
@@ -79,6 +81,7 @@ class PlayerViewModel @Inject constructor(
         subtitleRepository = subtitleRepository,
         parentalGuideRepository = parentalGuideRepository,
         traktScrobbleService = traktScrobbleService,
+        directScrobbleService = directScrobbleService, // [FORK]
         traktEpisodeMappingService = traktEpisodeMappingService,
         skipIntroRepository = skipIntroRepository,
         playerSettingsDataStore = playerSettingsDataStore,

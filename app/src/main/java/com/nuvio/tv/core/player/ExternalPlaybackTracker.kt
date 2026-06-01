@@ -4,6 +4,7 @@ import android.content.Context
 import android.util.Log
 import com.nuvio.tv.domain.model.WatchProgress
 import com.nuvio.tv.domain.repository.WatchProgressRepository
+import com.nuvio.tv.data.repository.DirectScrobbleService
 import com.nuvio.tv.data.repository.TraktScrobbleService
 import com.nuvio.tv.data.repository.TraktScrobbleItem
 import com.nuvio.tv.data.repository.TraktEpisodeMappingService
@@ -58,6 +59,7 @@ class ExternalPlaybackTracker @Inject constructor(
     @ApplicationContext private val appContext: Context,
     private val watchProgressRepository: WatchProgressRepository,
     private val traktScrobbleService: TraktScrobbleService,
+    private val directScrobbleService: DirectScrobbleService, // [FORK]
     private val traktEpisodeMappingService: TraktEpisodeMappingService,
     private val traktAuthService: TraktAuthService
 ) {
@@ -303,6 +305,8 @@ class ExternalPlaybackTracker @Inject constructor(
                         Log.d(TAG, "Sending Trakt scrobble: ${progressPercent}%")
                         traktScrobbleService.scrobbleStart(scrobbleItem, progressPercent = 0f)
                         traktScrobbleService.scrobbleStop(scrobbleItem, progressPercent = progressPercent)
+                        directScrobbleService.start(scrobbleItem, progressPercent = 0f) // [FORK]
+                        directScrobbleService.stop(scrobbleItem, progressPercent = progressPercent) // [FORK]
                     }
                 }
             }

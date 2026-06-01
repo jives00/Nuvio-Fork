@@ -31,6 +31,7 @@ import com.nuvio.tv.data.repository.SkipIntroRepository
 import com.nuvio.tv.data.repository.SkipInterval
 import com.nuvio.tv.data.repository.EpisodeMappingEntry
 import com.nuvio.tv.data.repository.TraktEpisodeMappingService
+import com.nuvio.tv.data.repository.DirectScrobbleService
 import com.nuvio.tv.data.repository.TraktScrobbleItem
 import com.nuvio.tv.data.repository.TraktScrobbleService
 import com.nuvio.tv.domain.model.Video
@@ -65,6 +66,7 @@ class PlayerRuntimeController(
     internal val subtitleRepository: com.nuvio.tv.domain.repository.SubtitleRepository,
     internal val parentalGuideRepository: ParentalGuideRepository,
     internal val traktScrobbleService: TraktScrobbleService,
+    internal val directScrobbleService: DirectScrobbleService, // [FORK]
     internal val traktEpisodeMappingService: TraktEpisodeMappingService,
     internal val skipIntroRepository: SkipIntroRepository,
     internal val playerSettingsDataStore: PlayerSettingsDataStore,

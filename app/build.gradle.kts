@@ -122,6 +122,10 @@ android {
         buildConfigField("String", "UNIQUE_CONTRIBUTIONS_BASE_URL", "\"${localProperties.getProperty("UNIQUE_CONTRIBUTIONS_BASE_URL", "")}\"")
         buildConfigField("String", "PREMIUMIZE_CLIENT_ID", "\"${localProperties.getProperty("PREMIUMIZE_CLIENT_ID", "")}\"")
 
+        // [FORK] Direct scrobble endpoint config
+        buildConfigField("String", "SCROBBLE_API_URL", "\"${localProperties.getProperty("SCROBBLE_API_URL", "")}\"")
+        buildConfigField("String", "SCROBBLE_API_KEY", "\"${localProperties.getProperty("SCROBBLE_API_KEY", "")}\"")
+
         // In-app updater (GitHub Releases)
         buildConfigField("String", "GITHUB_OWNER", "\"tapframe\"")
         buildConfigField("String", "GITHUB_REPO", "\"NuvioTV\"")

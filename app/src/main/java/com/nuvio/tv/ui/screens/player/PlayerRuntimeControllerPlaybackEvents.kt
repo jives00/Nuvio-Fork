@@ -409,6 +409,7 @@ internal fun PlayerRuntimeController.emitScrobbleStart() {
             item = item,
             progressPercent = progressPercent
         )
+        directScrobbleService.start(item, progressPercent) // [FORK]
         if (requestGeneration != scrobbleStartRequestGeneration || !hasRequestedScrobbleStartForCurrentItem) return@launch
         hasSentScrobbleStartForCurrentItem = true
     }
@@ -428,6 +429,7 @@ internal fun PlayerRuntimeController.emitScrobbleStop(progressPercent: Float? = 
             item = item,
             progressPercent = percent
         )
+        directScrobbleService.stop(item, percent) // [FORK]
     }
     scrobbleStartRequestGeneration++
     hasRequestedScrobbleStartForCurrentItem = false
@@ -446,6 +448,7 @@ internal fun PlayerRuntimeController.emitPauseScrobbleStop(progressPercent: Floa
             item = item,
             progressPercent = progressPercent
         )
+        directScrobbleService.stop(item, progressPercent) // [FORK]
     }
     scrobbleStartRequestGeneration++
     hasRequestedScrobbleStartForCurrentItem = false
