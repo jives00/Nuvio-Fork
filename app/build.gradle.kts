@@ -84,6 +84,12 @@ android {
     namespace = "com.nuvio.tv"
     compileSdk = 36
 
+    // [FORK] disable lint fatal errors for local sideload builds
+    lint {
+        checkReleaseBuilds = false
+        abortOnError = false
+    }
+
     defaultConfig {
         applicationId = "com.nuvio.tv"
         minSdk = 24
@@ -169,7 +175,7 @@ android {
 
     buildTypes {
         debug {
-            signingConfig = signingConfigs.getByName("release")
+            signingConfig = signingConfigs.getByName("debug") // [FORK] use debug keystore for local sideload builds
             isDebuggable = false
             isMinifyEnabled = false
 

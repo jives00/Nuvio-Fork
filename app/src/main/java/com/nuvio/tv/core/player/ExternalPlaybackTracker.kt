@@ -291,23 +291,24 @@ class ExternalPlaybackTracker @Inject constructor(
                 "progressPct=${progress.progressPercentage}, isInProgress=${progress.isInProgress()}")
             watchProgressRepository.saveProgress(progress)
 
-            // Trakt scrobble
-            if (traktAuthService.getCurrentAuthState().isAuthenticated &&
-                traktAuthService.hasRequiredCredentials()) {
-                val progressPercent = if (effectiveDuration > 0L) {
-                    (positionMs.toFloat() / effectiveDuration.toFloat() * 100f).coerceIn(0f, 100f)
-                } else {
-                    0f
-                }
-                if (progressPercent > 0f) {
-                    val scrobbleItem = buildScrobbleItem(metadata)
-                    if (scrobbleItem != null) {
+            val progressPercent = if (effectiveDuration > 0L) {
+                (positionMs.toFloat() / effectiveDuration.toFloat() * 100f).coerceIn(0f, 100f)
+            } else {
+                0f
+            }
+            if (progressPercent > 0f) {
+                val scrobbleItem = buildScrobbleItem(metadata)
+                if (scrobbleItem != null) {
+                    // Trakt scrobble (only when authenticated)
+                    if (traktAuthService.getCurrentAuthState().isAuthenticated &&
+                        traktAuthService.hasRequiredCredentials()) {
                         Log.d(TAG, "Sending Trakt scrobble: ${progressPercent}%")
                         traktScrobbleService.scrobbleStart(scrobbleItem, progressPercent = 0f)
                         traktScrobbleService.scrobbleStop(scrobbleItem, progressPercent = progressPercent)
-                        directScrobbleService.start(scrobbleItem, progressPercent = 0f) // [FORK]
-                        directScrobbleService.stop(scrobbleItem, progressPercent = progressPercent) // [FORK]
                     }
+                    // [FORK] Direct scrobble — no Trakt auth required
+                    directScrobbleService.start(scrobbleItem, progressPercent = 0f)
+                    directScrobbleService.stop(scrobbleItem, progressPercent = progressPercent)
                 }
             }
         }
