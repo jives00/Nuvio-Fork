@@ -1,0 +1,36 @@
+name: Build APK
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+          cache: gradle
+
+      - name: Write local.properties
+        env:
+          LOCAL_PROPERTIES_BASE64: ${{ secrets.LOCAL_PROPERTIES_BASE64 }}
+        run: printf '%s' "$LOCAL_PROPERTIES_BASE64" | base64 --decode > local.properties
+
+      - name: Build APK
+        env:
+          CI_USE_DEBUG_SIGNING: "true"
+        run: ./gradlew assemblefullRelease --no-daemon
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: nuvio-fork-apk
+          path: app/build/outputs/apk/full/release/*.apk
+          retention-days: 7
