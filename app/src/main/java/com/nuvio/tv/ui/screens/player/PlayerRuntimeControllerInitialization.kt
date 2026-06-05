@@ -837,6 +837,9 @@ internal fun PlayerRuntimeController.initializePlayer(
                                     // Tunneled mode — onRenderedFirstFrame() won't
                                     // fire; treat STATE_READY as the sync point.
                                     hasRenderedFirstFrame = true
+                                    if (_uiState.value.postPlayDismissedForCurrentEpisode) {
+                                        _uiState.update { it.copy(postPlayDismissedForCurrentEpisode = false) }
+                                    }
                                     if (!startPaused && !userPausedManually) {
                                         playWhenReady = true
                                         play()
@@ -906,11 +909,12 @@ internal fun PlayerRuntimeController.initializePlayer(
                             if (userPausedManually) schedulePauseOverlay() else cancelPauseOverlay()
                             stopProgressUpdates()
                             stopWatchProgressSaving()
-                            if (playbackState != Player.STATE_BUFFERING) {
+                            if (playbackState == Player.STATE_BUFFERING) {
+                                saveWatchProgressIfNeeded()
+                            } else {
                                 emitStopScrobbleForCurrentProgress()
+                                saveWatchProgress()
                             }
-
-                            saveWatchProgress()
                         }
                         refreshStableProgressResetGate()
                     }
@@ -922,6 +926,9 @@ internal fun PlayerRuntimeController.initializePlayer(
                     override fun onRenderedFirstFrame() {
                         val isFirstFrame = !hasRenderedFirstFrame  // capture BEFORE flipping
                         hasRenderedFirstFrame = true
+                        if (isFirstFrame && _uiState.value.postPlayDismissedForCurrentEpisode) {
+                            _uiState.update { it.copy(postPlayDismissedForCurrentEpisode = false) }
+                        }
                         updateAudioControlAvailability()
                         // Start playback now that the first video frame is
                         // visible: audio and video begin in sync.
@@ -1051,6 +1058,22 @@ internal fun PlayerRuntimeController.initializePlayer(
                             append(" [${error.errorCode}]")
                         }
                         cancelStableProgressReset()
+
+                        // If the codec crashed while the app is in the background (e.g. another
+                        // app reclaimed the hardware decoder), don't run the retry chain. Each
+                        // retry just re-acquires a decoder the foreground app immediately reclaims
+                        // again, burning the retry budget and landing on an unrecoverable
+                        // ERROR_CODE_DECODING_FAILED by the time the user returns. Save the
+                        // position, free the decoder, and rebuild paused on resume instead.
+                        if (isInBackground && isRetryablePlaybackError(error)) {
+                            backgroundCrashSavedPositionMs = currentPosition.takeIf { it > 0L } ?: 0L
+                            pendingBackgroundCrashRecovery = true
+                            errorRetryJob?.cancel()
+                            errorRetryJob = scope.launch {
+                                releasePlayer(flushPlaybackState = false)
+                            }
+                            return
+                        }
 
                         // Error handlers: DV codec failures, audio decoder issues, codec state errors.
                         if (error.isDolbyVisionDecoderFailure() && !isMapDv7ToHevcActiveForCurrentPlayback) {

@@ -24,6 +24,7 @@ import com.nuvio.tv.data.local.PlayerSettings
 import com.nuvio.tv.data.local.PlayerSettingsDataStore
 import com.nuvio.tv.data.local.DeviceLocalPlayerPreferences
 import com.nuvio.tv.data.local.StreamLinkCacheDataStore
+import com.nuvio.tv.data.local.StreamBadgeSettingsDataStore
 import com.nuvio.tv.data.local.BingeGroupCacheDataStore
 import com.nuvio.tv.data.local.StreamAutoPlayMode
 import com.nuvio.tv.data.repository.ParentalGuideRepository
@@ -72,6 +73,7 @@ class PlayerRuntimeController(
     internal val playerSettingsDataStore: PlayerSettingsDataStore,
     internal val deviceLocalPlayerPreferences: DeviceLocalPlayerPreferences,
     internal val streamLinkCacheDataStore: StreamLinkCacheDataStore,
+    internal val streamBadgeSettingsDataStore: StreamBadgeSettingsDataStore,
     internal val bingeGroupCacheDataStore: BingeGroupCacheDataStore,
     internal val layoutPreferenceDataStore: com.nuvio.tv.data.local.LayoutPreferenceDataStore,
     internal val watchedItemsPreferences: com.nuvio.tv.data.local.WatchedItemsPreferences,
@@ -501,6 +503,7 @@ class PlayerRuntimeController(
         observeBlurUnwatchedEpisodes()
         observeEpisodeWatchProgress()
         observeTorrentSettings()
+        observeStreamBadgeSettings()
         observeDeviceLocalAspectMode()
     }
 
@@ -508,6 +511,14 @@ class PlayerRuntimeController(
         scope.launch {
             torrentSettings.settings.collect { settings ->
                 _uiState.update { it.copy(hideTorrentStats = settings.hideTorrentStats) }
+            }
+        }
+    }
+
+    private fun observeStreamBadgeSettings() {
+        scope.launch {
+            streamBadgeSettingsDataStore.settings.collect { settings ->
+                _uiState.update { it.copy(showFileSizeBadges = settings.showFileSizeBadges) }
             }
         }
     }
