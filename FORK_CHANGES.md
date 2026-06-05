@@ -24,7 +24,7 @@ These are entirely new files. They will never conflict on merge.
 
 #### `app/build.gradle.kts`
 
-Three separate additions:
+Four separate changes:
 
 1. **Lint block** (after `compileSdk`): disables fatal lint errors for local sideload builds
    ```kotlin
@@ -46,6 +46,8 @@ Three separate additions:
    ```kotlin
    signingConfig = signingConfigs.getByName("debug") // [FORK] use debug keystore for local sideload builds
    ```
+
+4. **TV login redirect URL** (all three `TV_LOGIN_WEB_BASE_URL` fallback defaults): changed from `https://app.nuvio.tv/tv-login` to `https://nuvioapp.space/tv-login` so the QR code login flow lands on the correct page.
 
 #### `app/src/main/java/com/nuvio/tv/core/di/NetworkModule.kt`
 
