@@ -1,3 +1,5 @@
+A forked version of NuvioTV for AndroidTV.  This allows the user (me) to have a custom scrobbling service and not rely on Trakt or Simkl.
+
 <div align="center">
 
   <img src="assets/brand/app_logo_wordmark.png" alt="NuvioTV" width="300" />
