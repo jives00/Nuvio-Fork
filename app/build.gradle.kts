@@ -132,9 +132,9 @@ android {
         buildConfigField("String", "SCROBBLE_API_URL", "\"${localProperties.getProperty("SCROBBLE_API_URL", "")}\"")
         buildConfigField("String", "SCROBBLE_API_KEY", "\"${localProperties.getProperty("SCROBBLE_API_KEY", "")}\"")
 
-        // In-app updater (GitHub Releases)
-        buildConfigField("String", "GITHUB_OWNER", "\"tapframe\"")
-        buildConfigField("String", "GITHUB_REPO", "\"NuvioTV\"")
+        // [FORK] In-app updater points to fork repo, not upstream
+        buildConfigField("String", "GITHUB_OWNER", "\"jives00\"")
+        buildConfigField("String", "GITHUB_REPO", "\"Nuvio-Fork\"")
     }
 
     flavorDimensions += "distribution"

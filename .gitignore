@@ -50,4 +50,4 @@ avatars/
 logs
 AGENTS.md
 docs/
-status-page/
+status-page/*.keystore

@@ -9,6 +9,53 @@ All changes are tagged `// [FORK]` in-code for easy identification.
 
 ## What Was Changed
 
+### Auto-Update Feature
+
+The app has a built-in OTA updater (upstream's `updater/` package). It checks the GitHub Releases API on every launch and prompts the user to download and install a newer APK. Two changes redirect it at the fork instead of upstream:
+
+#### `app/build.gradle.kts`
+
+One block changed (in `defaultConfig`):
+```kotlin
+// [FORK] In-app updater points to fork repo, not upstream
+buildConfigField("String", "GITHUB_OWNER", "\"jives00\"")
+buildConfigField("String", "GITHUB_REPO", "\"Nuvio-Fork\"")
+```
+
+#### `.github/workflows/build-apk.yml`
+
+Replaced the artifact-only workflow with one that publishes a proper GitHub Release:
+- Decodes `FORK_DEBUG_KEYSTORE_BASE64` secret to `~/.android/debug.keystore` before building so the signing cert stays consistent across builds (required — mismatched certs block OTA installation)
+- Reads `versionName` from `build.gradle.kts` and uses it as the release tag
+- Creates a non-prerelease GitHub Release with the APK attached (the in-app updater skips `prerelease: true` releases, so non-prerelease is required)
+- Sends the release URL in the notification email (no GitHub login required to download)
+
+**One-time setup — GitHub secret `FORK_DEBUG_KEYSTORE_BASE64`:**
+
+Generate a keystore once and store it as a secret. Run this locally once:
+```bash
+keytool -genkey -v \
+  -keystore fork-debug.keystore \
+  -alias androiddebugkey \
+  -keyalg RSA -keysize 2048 -validity 36500 \
+  -storepass android -keypass android \
+  -dname "CN=Android Debug,O=Android,C=US"
+base64 -w 0 fork-debug.keystore
+```
+Add the base64 output as secret `FORK_DEBUG_KEYSTORE_BASE64` in the fork's GitHub repo settings.
+
+**First-time migration note:**
+
+Any APK installed before this change was signed with a randomly-generated CI debug key (different every build). That cert does not match the new stored keystore. You must manually uninstall and reinstall once from the first release built with the new keystore. All subsequent OTA updates will work automatically.
+
+**Merging upstream changes:**
+
+- `updater/` package — upstream owns this entirely; no fork changes inside it. If upstream changes `UpdateRepository.kt`, verify it still accepts non-prerelease releases (the `dto.draft || dto.prerelease` guard must remain or be removed).
+- `build.gradle.kts` — re-apply the `[FORK]` GITHUB_OWNER/REPO block after any merge that touches `defaultConfig`.
+- `build-apk.yml` — entirely fork-specific; no upstream equivalent. Will never conflict.
+
+---
+
 ### New Files (no upstream conflict possible)
 
 | File | Purpose |

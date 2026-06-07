@@ -1,4 +1,4 @@
-name: Build APK
+name: Build and Release APK
 
 on:
   workflow_dispatch:
@@ -23,6 +23,21 @@ jobs:
           LOCAL_PROPERTIES_BASE64: ${{ secrets.LOCAL_PROPERTIES_BASE64 }}
         run: printf '%s' "$LOCAL_PROPERTIES_BASE64" | base64 --decode > local.properties
 
+      - name: Restore debug keystore
+        # Uses a stored keystore so the signing cert stays consistent across builds.
+        # Consistent signing is required for OTA installs — mismatched certs block installation.
+        env:
+          FORK_DEBUG_KEYSTORE_BASE64: ${{ secrets.FORK_DEBUG_KEYSTORE_BASE64 }}
+        run: |
+          mkdir -p ~/.android
+          printf '%s' "$FORK_DEBUG_KEYSTORE_BASE64" | base64 --decode > ~/.android/debug.keystore
+
+      - name: Read version
+        id: version
+        run: |
+          VERSION=$(grep 'versionName = ' app/build.gradle.kts | sed 's/.*versionName = "\(.*\)".*/\1/')
+          echo "name=${VERSION}" >> "$GITHUB_OUTPUT"
+
       - name: Build APK
         env:
           CI_USE_DEBUG_SIGNING: "true"
@@ -31,17 +46,21 @@ jobs:
       - name: Rename APK
         id: apk
         run: |
-          TIMESTAMP=$(date -u +'%m%d%Y-%H%M')
-          APK_NAME="NuvioFork-${TIMESTAMP}.apk"
+          VERSION="${{ steps.version.outputs.name }}"
+          APK_NAME="NuvioFork-${VERSION}.apk"
           cp app/build/outputs/apk/full/release/app-full-universal-release.apk "${APK_NAME}"
           echo "name=${APK_NAME}" >> "$GITHUB_OUTPUT"
 
-      - name: Upload APK
-        uses: actions/upload-artifact@v4
-        with:
-          name: ${{ steps.apk.outputs.name }}
-          path: ${{ steps.apk.outputs.name }}
-          retention-days: 7
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          VERSION="${{ steps.version.outputs.name }}"
+          APK="${{ steps.apk.outputs.name }}"
+          gh release create "${VERSION}" "${APK}" \
+            --title "Fork ${VERSION}" \
+            --notes "Auto-built fork APK for version ${VERSION}." \
+            --repo "${{ github.repository }}"
 
       - name: Send email notification
         uses: dawidd6/action-send-mail@v3
@@ -52,11 +71,11 @@ jobs:
           password: ${{ secrets.GMAIL_APP_PASSWORD }}
           to: jbromberek@gmail.com
           from: Nuvio Fork CI <jbromberek@gmail.com>
-          subject: "NuvioFork APK build complete — ${{ steps.apk.outputs.name }}"
+          subject: "NuvioFork ${{ steps.version.outputs.name }} released"
           body: |
-            Build succeeded for ${{ steps.apk.outputs.name }}.
+            Build succeeded for NuvioFork ${{ steps.version.outputs.name }}.
 
-            Download (requires GitHub login):
-            ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+            Release page (direct APK download, no login required):
+            ${{ github.server_url }}/${{ github.repository }}/releases/tag/${{ steps.version.outputs.name }}
 
-            The APK is inside a .zip artifact named ${{ steps.apk.outputs.name }}.
+            The app will detect this release automatically on next launch.
