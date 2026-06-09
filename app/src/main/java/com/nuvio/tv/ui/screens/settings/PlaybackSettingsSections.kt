@@ -2,6 +2,8 @@
 
 package com.nuvio.tv.ui.screens.settings
 
+import com.nuvio.tv.ui.theme.NuvioTheme
+
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -75,7 +77,6 @@ import com.nuvio.tv.data.local.PlayerPreference
 import com.nuvio.tv.data.local.PlayerSettings
 import com.nuvio.tv.data.local.VodCacheSizeMode
 import com.nuvio.tv.ui.components.NuvioDialog
-import com.nuvio.tv.ui.theme.NuvioColors
 
 private enum class PlaybackSection {
     GENERAL,
@@ -251,6 +252,8 @@ internal fun PlaybackSettingsSections(
     val strSectionAudioDesc = stringResource(R.string.playback_section_audio_desc)
     val strSectionSubtitles = stringResource(R.string.playback_section_subtitles)
     val strSectionSubtitlesDesc = stringResource(R.string.playback_section_subtitles_desc)
+    val strSectionBufferNetwork = stringResource(R.string.playback_section_buffer_network)
+    val strSectionBufferNetworkDesc = stringResource(R.string.playback_section_buffer_network_desc)
     val strSectionP2p = stringResource(R.string.settings_p2p_title)
     val strSectionP2pDesc = stringResource(R.string.settings_p2p_subtitle)
     val strHideTorrentStats = stringResource(R.string.settings_p2p_hide_stats_title)
@@ -318,8 +321,8 @@ internal fun PlaybackSettingsSections(
     LazyColumn(
         state = playbackListState,
         modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(top = 4.dp, bottom = 32.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp)
+        contentPadding = PaddingValues(top = NuvioTheme.spacing.xs, bottom = NuvioTheme.spacing.xxl),
+        verticalArrangement = Arrangement.spacedBy(NuvioTheme.spacing.md)
     ) {
         playbackCollapsibleSection(
             keyPrefix = "general",
@@ -673,8 +676,8 @@ internal fun PlaybackSettingsSections(
             playerSettings.internalPlayerEngine == InternalPlayerEngine.AUTO) {
             playbackCollapsibleSection(
                 keyPrefix = "buffer_network",
-                title = "Buffer & Network",
-                description = "How much content to keep in memory and how to fetch streams.",
+                title = strSectionBufferNetwork,
+                description = strSectionBufferNetworkDesc,
                 expanded = bufferAndNetworkExpanded,
                 onToggle = { bufferAndNetworkExpanded = !bufferAndNetworkExpanded },
                 focusRequester = bufferAndNetworkHeaderFocus,
@@ -736,9 +739,9 @@ private fun LazyListScope.playbackCollapsibleSection(
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 4.dp)
-                    .height(1.dp)
-                    .background(NuvioColors.Border)
+                    .padding(horizontal = NuvioTheme.spacing.xs)
+                    .height(NuvioTheme.spacing.hairline)
+                    .background(NuvioTheme.colors.Border)
             )
         }
     }
@@ -793,7 +796,7 @@ private fun FrameRateMatchingModeOptions(
             enabled = enabled
         )
 
-        Spacer(modifier = Modifier.height(8.dp))
+        Spacer(modifier = Modifier.height(NuvioTheme.spacing.sm))
 
         RenderTypeSettingsItem(
             title = stringResource(R.string.playback_afr_on_start),
@@ -804,7 +807,7 @@ private fun FrameRateMatchingModeOptions(
             enabled = enabled
         )
 
-        Spacer(modifier = Modifier.height(8.dp))
+        Spacer(modifier = Modifier.height(NuvioTheme.spacing.sm))
 
         RenderTypeSettingsItem(
             title = stringResource(R.string.playback_afr_on_start_stop),
@@ -815,7 +818,7 @@ private fun FrameRateMatchingModeOptions(
             enabled = enabled
         )
 
-        Spacer(modifier = Modifier.height(8.dp))
+        Spacer(modifier = Modifier.height(NuvioTheme.spacing.sm))
 
         ToggleSettingsItem(
             icon = Icons.Default.Image,
@@ -872,9 +875,9 @@ private fun AfrCapabilityWarningCard(
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(SettingsSecondaryCardRadius))
-            .background(NuvioColors.BackgroundCard)
+            .background(NuvioTheme.colors.BackgroundCard)
             .border(
-                width = 1.dp,
+                width = NuvioTheme.spacing.hairline,
                 color = warningTone.copy(alpha = 0.55f),
                 shape = RoundedCornerShape(SettingsSecondaryCardRadius)
             )
@@ -891,7 +894,7 @@ private fun AfrCapabilityWarningCard(
             Text(
                 text = stringResource(R.string.playback_afr_capability_unsupported_title),
                 style = MaterialTheme.typography.titleSmall,
-                color = NuvioColors.TextPrimary,
+                color = NuvioTheme.colors.TextPrimary,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )
@@ -900,9 +903,9 @@ private fun AfrCapabilityWarningCard(
         Text(
             text = stringResource(bodyRes),
             style = MaterialTheme.typography.bodySmall,
-            color = NuvioColors.TextSecondary
+            color = NuvioTheme.colors.TextSecondary
         )
-        Spacer(modifier = Modifier.height(12.dp))
+        Spacer(modifier = Modifier.height(NuvioTheme.spacing.md))
         AfrCapabilityDisableButton(
             label = stringResource(buttonRes),
             onClick = {
@@ -933,12 +936,12 @@ private fun AfrCapabilityDisableButton(
                 }
             },
         colors = CardDefaults.colors(
-            containerColor = NuvioColors.Background,
-            focusedContainerColor = NuvioColors.Background
+            containerColor = NuvioTheme.colors.Background,
+            focusedContainerColor = NuvioTheme.colors.Background
         ),
         border = CardDefaults.border(
             focusedBorder = Border(
-                border = BorderStroke(2.dp, NuvioColors.FocusRing),
+                border = BorderStroke(NuvioTheme.spacing.xxs, NuvioTheme.colors.FocusRing),
                 shape = RoundedCornerShape(SettingsPillRadius)
             )
         ),
@@ -948,14 +951,14 @@ private fun AfrCapabilityDisableButton(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 14.dp, vertical = 12.dp),
+                .padding(horizontal = 14.dp, vertical = NuvioTheme.spacing.md),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.Center
         ) {
             Text(
                 text = label,
                 style = MaterialTheme.typography.bodyLarge,
-                color = if (isFocused) NuvioColors.Primary else NuvioColors.TextPrimary
+                color = if (isFocused) NuvioTheme.colors.Primary else NuvioTheme.colors.TextPrimary
             )
         }
     }
