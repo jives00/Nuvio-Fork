@@ -1,0 +1,101 @@
+name: Upstream Sync
+
+on:
+  schedule:
+    - cron: '0 8 * * *'  # daily at 8am UTC
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Configure git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+      - name: Fetch upstream
+        run: |
+          git remote add upstream https://github.com/NuvioMedia/NuvioTV.git
+          git fetch upstream
+
+      - name: Check for new upstream commits
+        id: check
+        run: |
+          BEHIND=$(git rev-list HEAD..upstream/dev --count 2>/dev/null || git rev-list HEAD..upstream/main --count)
+          echo "behind=${BEHIND}" >> "$GITHUB_OUTPUT"
+          # Resolve which upstream branch exists
+          if git rev-parse upstream/dev &>/dev/null; then
+            echo "upstream_branch=dev" >> "$GITHUB_OUTPUT"
+          else
+            echo "upstream_branch=main" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Attempt merge
+        if: steps.check.outputs.behind != '0'
+        id: merge
+        run: |
+          if git merge "upstream/${{ steps.check.outputs.upstream_branch }}" --no-edit; then
+            echo "success=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "success=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Push and trigger APK build
+        if: steps.check.outputs.behind != '0' && steps.merge.outputs.success == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          git push origin dev
+          gh workflow run build-apk.yml --ref dev
+
+      - name: Open conflict PR and notify
+        if: steps.check.outputs.behind != '0' && steps.merge.outputs.success == 'false'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          git merge --abort
+          BRANCH="upstream-sync/conflict-$(date +%Y%m%d)"
+          git checkout -b "$BRANCH"
+          git merge "upstream/${{ steps.check.outputs.upstream_branch }}" --no-edit || true
+          # Stage all files including conflict markers so the PR shows the diff
+          git add -A
+          git commit -m "chore: upstream sync conflict $(date +%Y-%m-%d) [needs manual resolution]"
+          git push origin "$BRANCH"
+          PR_URL=$(gh pr create \
+            --title "Upstream sync conflict — $(date +%Y-%m-%d)" \
+            --body "Automatic upstream sync failed due to merge conflicts. Files with conflict markers are committed so you can see the diff. Resolve conflicts and merge this PR manually to trigger a build." \
+            --draft \
+            --base dev \
+            --head "$BRANCH" \
+            --repo "${{ github.repository }}")
+          echo "pr_url=${PR_URL}" >> "$GITHUB_ENV"
+
+      - name: Send conflict notification email
+        if: steps.check.outputs.behind != '0' && steps.merge.outputs.success == 'false'
+        uses: dawidd6/action-send-mail@v3
+        with:
+          server_address: smtp.gmail.com
+          server_port: 465
+          username: jbromberek@gmail.com
+          password: ${{ secrets.GMAIL_APP_PASSWORD }}
+          to: jbromberek@gmail.com
+          from: Nuvio Fork CI <jbromberek@gmail.com>
+          subject: "NuvioFork upstream sync needs manual merge"
+          body: |
+            Upstream sync on $(date +%Y-%m-%d) failed due to merge conflicts.
+
+            A draft PR has been opened with the conflicting files so you can resolve them:
+            ${{ env.pr_url }}
+
+            Once resolved and merged, the APK build will need to be triggered manually.
