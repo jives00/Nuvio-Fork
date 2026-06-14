@@ -104,9 +104,7 @@ PYEOF
           fi
 
       - name: Push and trigger APK build
-        if: |
-          steps.check.outputs.behind != '0' &&
-          (steps.merge.outputs.success == 'true' || steps.resolve.outputs.resolved == 'true')
+        if: steps.check.outputs.behind != '0' && (steps.merge.outputs.success == 'true' || steps.resolve.outputs.resolved == 'true')
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
