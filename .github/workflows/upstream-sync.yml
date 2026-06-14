@@ -35,7 +35,6 @@ jobs:
         run: |
           BEHIND=$(git rev-list HEAD..upstream/dev --count 2>/dev/null || git rev-list HEAD..upstream/main --count)
           echo "behind=${BEHIND}" >> "$GITHUB_OUTPUT"
-          # Resolve which upstream branch exists
           if git rev-parse upstream/dev &>/dev/null; then
             echo "upstream_branch=dev" >> "$GITHUB_OUTPUT"
           else
@@ -52,8 +51,62 @@ jobs:
             echo "success=false" >> "$GITHUB_OUTPUT"
           fi
 
+      - name: Auto-resolve known fork conflicts
+        if: steps.check.outputs.behind != '0' && steps.merge.outputs.success == 'false'
+        id: resolve
+        run: |
+          CONFLICT_FILES=$(git diff --name-only --diff-filter=U)
+          echo "Conflicting files: $CONFLICT_FILES"
+
+          if [ "$CONFLICT_FILES" = "app/build.gradle.kts" ]; then
+            python3 - <<'PYEOF'
+import re
+
+with open("app/build.gradle.kts") as f:
+    content = f.read()
+
+def resolve_block(match):
+    ours   = match.group(1)
+    theirs = match.group(2)
+
+    # Always keep our fork's GitHub updater target
+    if "GITHUB_OWNER" in ours or "GITHUB_REPO" in ours:
+        return ours
+
+    # Version bump: take upstream's numbers, keep -fork suffix
+    if "versionCode" in theirs or "versionName" in theirs:
+        resolved = re.sub(
+            r'(versionName\s*=\s*")([^"]+)(")',
+            lambda m: m.group(1) + m.group(2).rstrip("-fork") + "-fork" + m.group(3),
+            theirs,
+        )
+        return resolved
+
+    # Default: take upstream
+    return theirs
+
+pattern = re.compile(
+    r"<<<<<<< HEAD\n(.*?)\n=======\n(.*?)\n>>>>>>> [^\n]+",
+    re.DOTALL,
+)
+resolved = pattern.sub(resolve_block, content)
+
+with open("app/build.gradle.kts", "w") as f:
+    f.write(resolved)
+
+print("Resolved app/build.gradle.kts")
+PYEOF
+            git add app/build.gradle.kts
+            git commit -m "chore: merge upstream/${{ steps.check.outputs.upstream_branch }} (auto-resolved fork conflicts)"
+            echo "resolved=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "resolved=false" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Push and trigger APK build
-        if: steps.check.outputs.behind != '0' && steps.merge.outputs.success == 'true'
+        if: |
+          steps.check.outputs.behind != '0' &&
+          (steps.merge.outputs.success == 'true' || steps.resolve.outputs.resolved == 'true')
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
@@ -61,7 +114,7 @@ jobs:
           gh workflow run build-apk.yml --ref dev
 
       - name: Open conflict PR and notify
-        if: steps.check.outputs.behind != '0' && steps.merge.outputs.success == 'false'
+        if: steps.check.outputs.behind != '0' && steps.merge.outputs.success == 'false' && steps.resolve.outputs.resolved != 'true'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
@@ -69,13 +122,12 @@ jobs:
           BRANCH="upstream-sync/conflict-$(date +%Y%m%d)"
           git checkout -b "$BRANCH"
           git merge "upstream/${{ steps.check.outputs.upstream_branch }}" --no-edit || true
-          # Stage all files including conflict markers so the PR shows the diff
           git add -A
           git commit -m "chore: upstream sync conflict $(date +%Y-%m-%d) [needs manual resolution]"
           git push origin "$BRANCH"
           PR_URL=$(gh pr create \
             --title "Upstream sync conflict — $(date +%Y-%m-%d)" \
-            --body "Automatic upstream sync failed due to merge conflicts. Files with conflict markers are committed so you can see the diff. Resolve conflicts and merge this PR manually to trigger a build." \
+            --body "Automatic upstream sync failed due to merge conflicts outside of known auto-resolvable files. Resolve conflicts and merge this PR manually to trigger a build." \
             --draft \
             --base dev \
             --head "$BRANCH" \
@@ -83,7 +135,7 @@ jobs:
           echo "pr_url=${PR_URL}" >> "$GITHUB_ENV"
 
       - name: Send conflict notification email
-        if: steps.check.outputs.behind != '0' && steps.merge.outputs.success == 'false'
+        if: steps.check.outputs.behind != '0' && steps.merge.outputs.success == 'false' && steps.resolve.outputs.resolved != 'true'
         uses: dawidd6/action-send-mail@v3
         with:
           server_address: smtp.gmail.com
@@ -94,9 +146,9 @@ jobs:
           from: Nuvio Fork CI <jbromberek@gmail.com>
           subject: "NuvioFork upstream sync needs manual merge"
           body: |
-            Upstream sync on $(date +%Y-%m-%d) failed due to merge conflicts.
+            Upstream sync on $(date +%Y-%m-%d) failed due to merge conflicts that could not be auto-resolved.
 
-            A draft PR has been opened with the conflicting files so you can resolve them:
+            A draft PR has been opened with the conflicting files:
             ${{ env.pr_url }}
 
             Once resolved and merged, the APK build will need to be triggered manually.
