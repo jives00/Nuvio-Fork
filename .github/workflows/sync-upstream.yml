@@ -76,13 +76,10 @@ jobs:
             git commit -m "chore: restore fork workflow files (GITHUB_TOKEN restriction)"
           fi
 
-      - name: Push and trigger APK build
+      - name: Push
         if: steps.check.outputs.behind != '0' && (steps.merge.outputs.success == 'true' || steps.resolve.outputs.resolved == 'true')
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           git push origin dev
-          gh workflow run build-apk.yml --ref dev --repo "${{ github.repository }}"
 
       - name: Open conflict PR and notify
         if: steps.check.outputs.behind != '0' && steps.merge.outputs.success == 'false' && steps.resolve.outputs.resolved != 'true'
