@@ -28,14 +28,15 @@ jobs:
           LOCAL_PROPERTIES_BASE64: ${{ secrets.LOCAL_PROPERTIES_BASE64 }}
         run: printf '%s' "$LOCAL_PROPERTIES_BASE64" | base64 --decode > local.properties
 
-      - name: Restore debug keystore
-        # Uses a stored keystore so the signing cert stays consistent across builds.
-        # Consistent signing is required for OTA installs — mismatched certs block installation.
+      - name: Restore release keystore
+        # Explicit, stable release keystore stored as a secret. Signing with a fixed
+        # cert is required for OTA installs — every build must share one signature or
+        # Android rejects the update with "App not installed".
+        # (The old debug-keystore approach was unreliable: AGP auto-regenerated a fresh
+        # debug key per build, so each release was signed with a different cert.)
         env:
-          FORK_DEBUG_KEYSTORE_BASE64: ${{ secrets.FORK_DEBUG_KEYSTORE_BASE64 }}
-        run: |
-          mkdir -p ~/.android
-          printf '%s' "$FORK_DEBUG_KEYSTORE_BASE64" | base64 --decode > ~/.android/debug.keystore
+          FORK_RELEASE_KEYSTORE_BASE64: ${{ secrets.FORK_RELEASE_KEYSTORE_BASE64 }}
+        run: printf '%s' "$FORK_RELEASE_KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/fork-release.jks"
 
       - name: Read version
         id: version
@@ -45,7 +46,10 @@ jobs:
 
       - name: Build APK
         env:
-          CI_USE_DEBUG_SIGNING: "true"
+          NUVIO_RELEASE_STORE_FILE: ${{ runner.temp }}/fork-release.jks
+          NUVIO_RELEASE_KEY_ALIAS: ${{ secrets.FORK_RELEASE_KEY_ALIAS }}
+          NUVIO_RELEASE_KEY_PASSWORD: ${{ secrets.FORK_RELEASE_KEY_PASSWORD }}
+          NUVIO_RELEASE_STORE_PASSWORD: ${{ secrets.FORK_RELEASE_STORE_PASSWORD }}
         run: ./gradlew assemblefullRelease --no-daemon -x lint
 
       - name: Rename APK
@@ -62,6 +66,9 @@ jobs:
         run: |
           VERSION="${{ steps.version.outputs.name }}"
           APK="${{ steps.apk.outputs.name }}"
+          # Version tracks upstream, so the same version is rebuilt on repeated pushes.
+          # Replace any existing release+tag so the latest build always wins.
+          gh release delete "${VERSION}" --repo "${{ github.repository }}" --yes --cleanup-tag || true
           gh release create "${VERSION}" "${APK}" \
             --title "Fork ${VERSION}" \
             --notes "Auto-built fork APK for version ${VERSION}." \
