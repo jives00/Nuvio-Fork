@@ -94,8 +94,7 @@ Four separate changes:
    signingConfig = signingConfigs.getByName("debug") // [FORK] use debug keystore for local sideload builds
    ```
 
-4. **TV login redirect URL** (all three `TV_LOGIN_WEB_BASE_URL` fallback defaults): changed from `https://app.nuvio.tv/tv-login` to `https://nuvioapp.space/tv-login` so the QR code login flow lands on the correct page.
-   > **Note:** Nuvio appears to be in the middle of a domain migration. The Play Store version uses `nuvioapp.space` but future upstream releases may switch back to `app.nuvio.tv` or to a different domain entirely. When merging a future upstream version, verify which URL the Play Store APK uses and revert this change if upstream has settled on a new default.
+4. ~~**TV login redirect URL**~~ — resolved upstream (`ecb71f11`, "Use nuvio.tv for TV login QR links"). Upstream's own default is now `https://nuvio.tv/tv-login`; the fork previously carried a temporary override to work around a broken domain, but that's no longer needed since upstream fixed it directly. No action needed on future merges unless upstream's default drifts again.
 
 #### `app/src/main/java/com/nuvio/tv/core/di/NetworkModule.kt`
 
