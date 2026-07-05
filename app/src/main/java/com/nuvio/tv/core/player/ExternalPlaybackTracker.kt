@@ -867,7 +867,7 @@ class ExternalPlaybackTracker @Inject constructor(
                     }
                     // [FORK] Direct scrobble — no Trakt auth required
                     directScrobbleService.start(scrobbleItem, progressPercent = 0f)
-                    directScrobbleService.stop(scrobbleItem, progressPercent = progressPercent)
+                    directScrobbleService.stop(scrobbleItem, progressPercent = progressPercent, paused = false)
                 }
             }
         }

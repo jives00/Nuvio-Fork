@@ -22,22 +22,23 @@ class DirectScrobbleService @Inject constructor(
     suspend fun start(item: TraktScrobbleItem, progressPercent: Float) {
         if (BuildConfig.SCROBBLE_API_URL.isBlank()) return
         runCatching {
-            api.scrobbleStart(BuildConfig.SCROBBLE_API_KEY, buildBody(item, progressPercent))
+            api.scrobbleStart(BuildConfig.SCROBBLE_API_KEY, buildBody(item, progressPercent, paused = false))
         }.onFailure { Log.w(TAG, "scrobble start failed", it) }
     }
 
-    suspend fun stop(item: TraktScrobbleItem, progressPercent: Float) {
+    suspend fun stop(item: TraktScrobbleItem, progressPercent: Float, paused: Boolean) {
         if (BuildConfig.SCROBBLE_API_URL.isBlank()) return
         runCatching {
-            api.scrobbleStop(BuildConfig.SCROBBLE_API_KEY, buildBody(item, progressPercent))
+            api.scrobbleStop(BuildConfig.SCROBBLE_API_KEY, buildBody(item, progressPercent, paused))
         }.onFailure { Log.w(TAG, "scrobble stop failed", it) }
     }
 
-    private fun buildBody(item: TraktScrobbleItem, progressPercent: Float): TraktScrobbleRequestDto =
+    private fun buildBody(item: TraktScrobbleItem, progressPercent: Float, paused: Boolean): TraktScrobbleRequestDto =
         when (item) {
             is TraktScrobbleItem.Movie -> TraktScrobbleRequestDto(
                 movie = TraktMovieDto(title = item.title, year = item.year, ids = item.ids),
-                progress = progressPercent.coerceIn(0f, 100f)
+                progress = progressPercent.coerceIn(0f, 100f),
+                paused = paused
             )
             is TraktScrobbleItem.Episode -> TraktScrobbleRequestDto(
                 show = TraktShowDto(title = item.showTitle, year = item.showYear, ids = item.showIds),
@@ -46,7 +47,8 @@ class DirectScrobbleService @Inject constructor(
                     season = item.season,
                     number = item.number
                 ),
-                progress = progressPercent.coerceIn(0f, 100f)
+                progress = progressPercent.coerceIn(0f, 100f),
+                paused = paused
             )
         }
 }

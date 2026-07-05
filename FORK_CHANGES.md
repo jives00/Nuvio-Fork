@@ -125,14 +125,23 @@ private val directScrobbleService: DirectScrobbleService, // [FORK]
 directScrobbleService = directScrobbleService, // [FORK]
 ```
 
+#### `app/src/main/java/com/nuvio/tv/data/remote/dto/trakt/TraktScrobbleDtos.kt`
+
+`TraktScrobbleRequestDto` has a `paused: Boolean = false` field appended:
+```kotlin
+@Json(name = "paused") val paused: Boolean = false
+```
+Distinguishes a genuine user pause (Trakt keeps `now_playing` alive) from a real stop/exit (Trakt clears it). Trakt.tv's official API ignores the extra field; only `DirectScrobbleService` reads it.
+
 #### `app/src/main/java/com/nuvio/tv/ui/screens/player/PlayerRuntimeControllerPlaybackEvents.kt`
 
-Three call sites — one `start` and two `stop` — each a single line appended after the existing Trakt scrobble call:
+Three call sites — one `start` and two `stop` — each a single line appended after the existing Trakt scrobble call. **The `paused` argument on `stop` is load-bearing** (see "Merging Upstream Changes" below) — it is *not* just a progress echo:
 ```kotlin
-directScrobbleService.start(item, progressPercent) // [FORK]
-directScrobbleService.stop(item, percent)          // [FORK]
-directScrobbleService.stop(item, progressPercent)  // [FORK]
+directScrobbleService.start(item, progressPercent)                 // [FORK]
+directScrobbleService.stop(item, percent, paused = false)          // [FORK] — emitScrobbleStop: completion/explicit stop
+directScrobbleService.stop(item, progressPercent, paused)          // [FORK] — emitPauseScrobbleStop: paused param threaded from caller
 ```
+`emitPauseScrobbleStop(progressPercent, paused: Boolean = true)` and `emitStopScrobbleForCurrentProgress(paused: Boolean = true)` both take a `paused` parameter (default `true`, i.e. "assume pause unless told otherwise"). `flushPlaybackSnapshotForSwitchOrExit()` is the one caller that explicitly passes `paused = false`, because it fires on real exit/stream-switch, not a user pause.
 
 #### `app/src/main/java/com/nuvio/tv/core/player/ExternalPlaybackTracker.kt`
 
@@ -142,8 +151,9 @@ private val directScrobbleService: DirectScrobbleService, // [FORK]
 // ...
 // [FORK] Direct scrobble — no Trakt auth required
 directScrobbleService.start(scrobbleItem, progressPercent = 0f)
-directScrobbleService.stop(scrobbleItem, progressPercent = progressPercent)
+directScrobbleService.stop(scrobbleItem, progressPercent = progressPercent, paused = false)
 ```
+This is a one-shot external-playback snapshot report, not a live pause/resume session — always `paused = false` so it clears immediately rather than lingering in `now_playing`.
 
 ---
 
@@ -175,9 +185,11 @@ When pulling upstream changes from `NuvioMedia/NuvioTV`:
 
 4. **`PlayerRuntimeController.kt` / `PlayerViewModel.kt`** — If upstream adds or reorders constructor parameters, re-add `directScrobbleService` as a parameter and pass-through. Position doesn't matter.
 
-5. **`PlayerRuntimeControllerPlaybackEvents.kt`** — If upstream changes `emitScrobbleStart`, `emitScrobbleStop`, or `emitPauseScrobbleStop`, ensure each function still calls `directScrobbleService.start/stop` after the Trakt call. These are the three functions containing `// [FORK]`.
+5. **`PlayerRuntimeControllerPlaybackEvents.kt`** — If upstream changes `emitScrobbleStart`, `emitScrobbleStop`, `emitPauseScrobbleStop`, or `emitStopScrobbleForCurrentProgress`, ensure each function still calls `directScrobbleService.start/stop` after the Trakt call, **and that the `paused` argument survives**: `emitPauseScrobbleStop`/`emitStopScrobbleForCurrentProgress` take `paused: Boolean = true`, and `flushPlaybackSnapshotForSwitchOrExit()` must keep passing `paused = false` explicitly. Dropping this during a conflict resolution silently regresses the "now_playing never clears on real stop" bug (fixed 2026-07) — a real stop/exit gets misread as a pause and Trakt's `now_playing` never clears until it times out after 4 hours. These are the functions containing `// [FORK]`.
 
-6. **`ExternalPlaybackTracker.kt`** — If upstream changes the scrobble block, ensure `directScrobbleService` calls remain **outside** the Trakt `isAuthenticated` guard.
+6. **`ExternalPlaybackTracker.kt`** — If upstream changes the scrobble block, ensure `directScrobbleService` calls remain **outside** the Trakt `isAuthenticated` guard, and that `stop(...)` keeps `paused = false`.
+
+7. **`TraktScrobbleDtos.kt`** — If upstream restructures `TraktScrobbleRequestDto`, keep the `paused: Boolean = false` field; it has a default so it's additive and won't conflict unless upstream touches the same lines.
 
 ---
 
@@ -185,6 +197,6 @@ When pulling upstream changes from `NuvioMedia/NuvioTV`:
 
 The Trakt app (`https://github.com/jives00/trakt`) handles these scrobbles at:
 - `POST /api/scrobble/nuvio/start` — updates now-playing
-- `POST /api/scrobble/nuvio/stop` — records watch history at 80% (movie) / 70% (episode)
+- `POST /api/scrobble/nuvio/stop` — below the user's watch-completion threshold: clears `now_playing` unless `paused: true` is set (then it keeps the session alive with `paused` recorded, so the dashboard hero freezes progress instead of extrapolating it). At/above threshold: always clears and records watch history regardless of `paused`.
 
 Auth: `X-Api-Key` header matching `SCROBBLE_API_KEY` in server `.env`.

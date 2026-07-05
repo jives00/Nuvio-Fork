@@ -742,14 +742,14 @@ internal fun PlayerRuntimeController.emitScrobbleStop(progressPercent: Float? = 
             item = item,
             progressPercent = percent
         )
-        directScrobbleService.stop(item, percent) // [FORK]
+        directScrobbleService.stop(item, percent, paused = false) // [FORK]
     }
     scrobbleStartRequestGeneration++
     hasRequestedScrobbleStartForCurrentItem = false
     hasSentScrobbleStartForCurrentItem = false
 }
 
-internal fun PlayerRuntimeController.emitPauseScrobbleStop(progressPercent: Float) {
+internal fun PlayerRuntimeController.emitPauseScrobbleStop(progressPercent: Float, paused: Boolean = true) {
     if (progressPercent < 1f || progressPercent >= 80f) return
     if (isShortPlaceholderStream()) return
     val item = currentScrobbleItem
@@ -761,7 +761,7 @@ internal fun PlayerRuntimeController.emitPauseScrobbleStop(progressPercent: Floa
             item = item,
             progressPercent = progressPercent
         )
-        directScrobbleService.stop(item, progressPercent) // [FORK]
+        directScrobbleService.stop(item, progressPercent, paused) // [FORK]
     }
     scrobbleStartRequestGeneration++
     hasRequestedScrobbleStartForCurrentItem = false
@@ -774,14 +774,16 @@ internal fun PlayerRuntimeController.emitCompletionScrobbleStop(progressPercent:
     emitScrobbleStop(progressPercent = progressPercent)
 }
 
-internal fun PlayerRuntimeController.emitStopScrobbleForCurrentProgress() {
+// [FORK] `paused` distinguishes a genuine user pause (keep the Trakt now_playing
+// session alive) from a real stop/exit (clear it) — both hit this same function.
+internal fun PlayerRuntimeController.emitStopScrobbleForCurrentProgress(paused: Boolean = true) {
     val progressPercent = currentPlaybackProgressPercent()
-    emitPauseScrobbleStop(progressPercent = progressPercent)
+    emitPauseScrobbleStop(progressPercent = progressPercent, paused = paused)
     emitCompletionScrobbleStop(progressPercent = progressPercent)
 }
 
 internal fun PlayerRuntimeController.flushPlaybackSnapshotForSwitchOrExit() {
-    emitStopScrobbleForCurrentProgress()
+    emitStopScrobbleForCurrentProgress(paused = false)
     saveWatchProgress()
 }
 
@@ -792,7 +794,7 @@ internal fun PlayerRuntimeController.scheduleProgressSyncAfterSeek() {
         saveWatchProgress()
 
         val progressPercent = currentPlaybackProgressPercent()
-        emitPauseScrobbleStop(progressPercent = progressPercent)
+        emitPauseScrobbleStop(progressPercent = progressPercent, paused = true)
 
         if (isPlaybackCurrentlyPlaying() && progressPercent >= 1f && progressPercent < 80f) {
             emitScrobbleStart()
