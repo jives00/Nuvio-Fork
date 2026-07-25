@@ -9,6 +9,8 @@
 /.idea/navEditor.xml
 /.idea/assetWizardSettings.xml
 .DS_Store
+__pycache__/
+*.py[cod]
 /build
 **/build/
 !app/src/**/java/**/core/build/
@@ -41,8 +43,18 @@ db/
 backups/
 .supabase_db.env
 scripts/*
+!scripts/generate-release-notes.sh
+!scripts/generate_release_notes.py
+!scripts/release_notes/
+!scripts/release_notes/*.py
+!scripts/release-metadata.sh
 !scripts/release_beta.py
+<<<<<<< HEAD
 !scripts/resolve_upstream_conflict.py
+=======
+!scripts/tests/
+!scripts/tests/*.py
+>>>>>>> upstream/dev
 /supabase
 tv-samples
 HOME_UI_OPTIMIZATION_NOTES.local.md
@@ -52,4 +64,8 @@ avatars/
 logs
 AGENTS.md
 docs/
+<<<<<<< HEAD
 status-page/*.keystore
+=======
+status-page/
+>>>>>>> upstream/dev
