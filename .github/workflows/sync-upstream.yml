@@ -99,17 +99,23 @@ jobs:
           git add -A
           git commit -m "chore: upstream sync conflict $(date +%Y-%m-%d) [needs manual resolution]"
           git push --force origin "$BRANCH"
+          BRANCH_URL="${{ github.server_url }}/${{ github.repository }}/compare/dev...${BRANCH}?expand=1"
           EXISTING_PR=$(gh pr list --repo "${{ github.repository }}" --head "$BRANCH" --json url --jq '.[0].url' || true)
           if [ -n "$EXISTING_PR" ]; then
             PR_URL="$EXISTING_PR"
           else
+            # SYNC_PAT may lack pull-requests:write. Don't fail the run over it —
+            # the conflict branch is already pushed, so fall back to a compare link.
             PR_URL=$(gh pr create \
               --title "Upstream sync conflict -- $(date +%Y-%m-%d)" \
               --body "Automatic upstream sync failed due to merge conflicts outside of known auto-resolvable files. Resolve conflicts and merge this PR manually to trigger a build." \
               --draft \
               --base dev \
               --head "$BRANCH" \
-              --repo "${{ github.repository }}")
+              --repo "${{ github.repository }}") || {
+                echo "::warning::Could not create PR (check SYNC_PAT pull-requests:write scope); falling back to compare link."
+                PR_URL="$BRANCH_URL"
+              }
           fi
           echo "pr_url=${PR_URL}" >> "$GITHUB_ENV"
 
