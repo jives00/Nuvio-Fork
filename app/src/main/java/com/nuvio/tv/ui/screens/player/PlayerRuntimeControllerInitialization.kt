@@ -69,6 +69,7 @@ import com.nuvio.tv.core.player.DolbyVisionConversionStats
 import com.nuvio.tv.core.player.DolbyVisionExtractorsFactory
 import com.nuvio.tv.core.player.DoviBridge
 import com.nuvio.tv.core.player.LastPlaybackDiagnostics
+import com.nuvio.tv.core.tracking.TrackingScrobbleAction
 import com.nuvio.tv.ui.screens.settings.MemoryBudget
 import com.nuvio.tv.data.local.AddonSubtitleStartupMode
 import com.nuvio.tv.data.local.AudioLanguageOption
@@ -968,20 +969,23 @@ internal fun PlayerRuntimeController.initializePlayer(
                     message = context.getString(R.string.player_loading_starting)
                 )
                 val isTunneledPlayback = playerSettings.tunnelingEnabled
-                // Always start paused — playback begins in onRenderedFirstFrame()
-                // so audio and video start in perfect sync. Without this, the
-                // audio renderer races ahead by 1-2s while the video decoder
-                // is still decoding the first I-frame.
+                // Hold playWhenReady=false through prepare() so audio does not race ahead
+                // while the video decoder is still opening. The first STATE_READY primes the
+                // pipeline (ColdStartPrime); synchronized play() begins in onRenderedFirstFrame().
                 //
-                // Exception: tunneled playback bypasses the normal video
-                // rendering pipeline so onRenderedFirstFrame() never fires.
-                // In that case we fall back to starting on STATE_READY.
-                playWhenReady = !startPaused && !userPausedManually
+                // Exception: tunneled playback bypasses the normal video rendering pipeline
+                // so onRenderedFirstFrame() never fires — TunneledFirstReady starts on READY.
+                playWhenReady = false
                 prepare()
 
                 addListener(object : Player.Listener {
                     override fun onPlaybackStateChanged(playbackState: Int) {
                         if (isReleasingPlayer) return
+                        logScrobbleDiagnostic(
+                            "exo_playback_state",
+                            "playbackState=$playbackState playWhenReady=$playWhenReady isPlaying=$isPlaying " +
+                                "userPaused=$userPausedManually"
+                        )
                         if (playbackState == Player.STATE_BUFFERING || playbackState == Player.STATE_READY) {
                             mediaSourceFactory.unlockStartupPrefetch()
                         }
@@ -1081,19 +1085,31 @@ internal fun PlayerRuntimeController.initializePlayer(
                             // for onRenderedFirstFrame() to ensure A/V sync.
                             // Exception: tunneled playback never fires
                             // onRenderedFirstFrame(), so we must start here.
-                            if (shouldEnforceAutoplayOnFirstReady) {
-                                shouldEnforceAutoplayOnFirstReady = false
-                                if (isTunneledPlayback) {
-                                    // Tunneled mode — onRenderedFirstFrame() won't
-                                    // fire; treat STATE_READY as the sync point.
-                                    hasRenderedFirstFrame = true
+                            val readyTransition = PlayerStartupPlaybackPolicy.onStateReady(
+                                PlayerStartupPlaybackPolicy.ReadyState(
+                                    shouldEnforceAutoplayOnFirstReady = shouldEnforceAutoplayOnFirstReady,
+                                    hasRenderedFirstFrame = hasRenderedFirstFrame,
+                                    userPausedManually = userPausedManually,
+                                    startPaused = startPaused,
+                                    isTunneledPlayback = isTunneledPlayback,
+                                )
+                            )
+                            shouldEnforceAutoplayOnFirstReady =
+                                readyTransition.nextState.shouldEnforceAutoplayOnFirstReady
+                            if (readyTransition.nextState.hasRenderedFirstFrame && isTunneledPlayback) {
+                                hasRenderedFirstFrame = true
+                            }
+                            when (val action = readyTransition.action) {
+                                is PlayerStartupPlaybackPolicy.ReadyAction.TunneledFirstReady -> {
                                     mediaSourceFactory.unlockStartupPrefetch()
                                     playbackAnalyticsDiagnostics.onSyntheticFirstFrame(this@apply)
                                     if (_uiState.value.postPlayDismissedForCurrentEpisode) {
                                         _uiState.update { it.copy(postPlayDismissedForCurrentEpisode = false) }
                                     }
-                                    if (!startPaused && !userPausedManually) {
+                                    if (action.setPlayWhenReady) {
                                         playWhenReady = true
+                                    }
+                                    if (action.callPlay) {
                                         play()
                                     }
                                     finishLoadingDiagnostics("first_frame_ready")
@@ -1107,9 +1123,28 @@ internal fun PlayerRuntimeController.initializePlayer(
                                         )
                                     }
                                 }
-                                // Non-tunneled: playback will start in onRenderedFirstFrame().
-                            } else if (!userPausedManually && hasRenderedFirstFrame) {
-                                play()
+                                is PlayerStartupPlaybackPolicy.ReadyAction.ColdStartPrime -> {
+                                    if (action.setPlayWhenReady) {
+                                        playWhenReady = true
+                                    }
+                                    if (action.callPlay) {
+                                        play()
+                                    }
+                                }
+                                is PlayerStartupPlaybackPolicy.ReadyAction.PreFirstFrameResume -> {
+                                    if (action.setPlayWhenReady) {
+                                        playWhenReady = true
+                                    }
+                                    if (action.callPlay) {
+                                        play()
+                                    }
+                                }
+                                is PlayerStartupPlaybackPolicy.ReadyAction.PostFirstFrameResume -> {
+                                    if (action.callPlay) {
+                                        play()
+                                    }
+                                }
+                                PlayerStartupPlaybackPolicy.ReadyAction.None -> Unit
                             }
                             tryApplyPendingResumeProgress(this@apply)
                             _uiState.value.pendingSeekPosition?.let { position ->
@@ -1164,6 +1199,11 @@ internal fun PlayerRuntimeController.initializePlayer(
                     }
 
                     override fun onIsPlayingChanged(isPlaying: Boolean) {
+                        logScrobbleDiagnostic(
+                            "exo_is_playing_changed",
+                            "isPlaying=$isPlaying playbackState=$playbackState playWhenReady=$playWhenReady " +
+                                "userPaused=$userPausedManually"
+                        )
                         _uiState.update { it.copy(isPlaying = isPlaying) }
                         if (isPlaying) {
                             userPausedManually = false
@@ -1182,7 +1222,11 @@ internal fun PlayerRuntimeController.initializePlayer(
                             if (playbackState == Player.STATE_BUFFERING) {
                                 saveWatchProgressIfNeeded()
                             } else {
-                                emitStopScrobbleForCurrentProgress()
+                                when (trackingActionForNonPlayingState(playbackState)) {
+                                    TrackingScrobbleAction.PAUSE -> emitPauseScrobbleForCurrentProgress()
+                                    TrackingScrobbleAction.STOP -> emitStopScrobbleForCurrentProgress()
+                                    TrackingScrobbleAction.START, null -> Unit
+                                }
                                 saveWatchProgress()
                             }
                         }
@@ -1409,6 +1453,8 @@ internal fun PlayerRuntimeController.initializePlayer(
                             retryCurrentStreamFromStartAfter416(currentPosition)
                             return
                         }
+
+                        handleParsingErrorFallback(error)
 
                         // ── Main Engine Failover ──
                         if (maybeAutoSwitchInternalPlayerOnStartupError(detailedError = detailedError, allowEngineFailover = allowEngineFailover)) {

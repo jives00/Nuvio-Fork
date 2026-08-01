@@ -3,20 +3,19 @@ package com.nuvio.tv.core.player
 import android.content.Context
 import android.util.Log
 import com.nuvio.tv.core.network.NetworkResult
+import com.nuvio.tv.core.tracking.TrackingMediaKind
+import com.nuvio.tv.core.tracking.TrackingMediaReference
+import com.nuvio.tv.core.tracking.TrackingScrobbleAction
+import com.nuvio.tv.core.tracking.TrackingScrobbleCoordinator
+import com.nuvio.tv.core.tracking.TrackingScrobbleEvent
+import com.nuvio.tv.core.tracking.buildTrackingMediaReference
 import com.nuvio.tv.data.local.PlayerSettingsDataStore
 import com.nuvio.tv.domain.model.Video
 import com.nuvio.tv.domain.model.WatchProgress
 import com.nuvio.tv.domain.repository.MetaRepository
 import com.nuvio.tv.domain.repository.WatchProgressRepository
-import com.nuvio.tv.data.repository.DirectScrobbleService
-import com.nuvio.tv.data.repository.TraktScrobbleService
-import com.nuvio.tv.data.repository.TraktScrobbleItem
-import com.nuvio.tv.data.repository.TraktEpisodeMappingService
-import com.nuvio.tv.data.repository.TraktAuthService
 import com.nuvio.tv.data.repository.SkipIntroRepository
-import com.nuvio.tv.data.repository.parseContentIds
-import com.nuvio.tv.data.repository.extractYear
-import com.nuvio.tv.data.repository.toTraktIds
+import com.nuvio.tv.data.repository.DirectScrobbleService
 import com.nuvio.tv.ui.screens.player.PlayerNextEpisodeRules
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.CoroutineScope
@@ -164,10 +163,8 @@ internal fun resolveExternalNextEpisodeSnapshot(
 class ExternalPlaybackTracker @Inject constructor(
     @ApplicationContext private val appContext: Context,
     private val watchProgressRepository: WatchProgressRepository,
-    private val traktScrobbleService: TraktScrobbleService,
+    private val trackingScrobbleCoordinator: TrackingScrobbleCoordinator,
     private val directScrobbleService: DirectScrobbleService, // [FORK]
-    private val traktEpisodeMappingService: TraktEpisodeMappingService,
-    private val traktAuthService: TraktAuthService,
     private val metaRepository: MetaRepository,
     private val playerSettingsDataStore: PlayerSettingsDataStore,
     private val skipIntroRepository: SkipIntroRepository
@@ -1209,14 +1206,15 @@ class ExternalPlaybackTracker @Inject constructor(
             if (progressPercent > 0f) {
                 val scrobbleItem = buildScrobbleItem(metadata)
                 if (scrobbleItem != null) {
-                    // Trakt scrobble (only when authenticated)
-                    if (traktAuthService.getCurrentAuthState().isAuthenticated &&
-                        traktAuthService.hasRequiredCredentials()) {
-                        Log.d(TAG, "Sending Trakt scrobble: ${progressPercent}%")
-                        traktScrobbleService.scrobbleStart(scrobbleItem, progressPercent = 0f)
-                        traktScrobbleService.scrobbleStop(scrobbleItem, progressPercent = progressPercent)
-                    }
-                    // [FORK] Direct scrobble — no Trakt auth required
+                    trackingScrobbleCoordinator.scrobble(
+                        TrackingScrobbleAction.START,
+                        TrackingScrobbleEvent(scrobbleItem, 0.0)
+                    )
+                    trackingScrobbleCoordinator.scrobble(
+                        TrackingScrobbleAction.STOP,
+                        TrackingScrobbleEvent(scrobbleItem, progressPercent.toDouble())
+                    )
+                    // [FORK] Direct scrobble — no tracking provider connection required
                     directScrobbleService.start(scrobbleItem, progressPercent = 0f)
                     directScrobbleService.stop(scrobbleItem, progressPercent = progressPercent, paused = false)
                 }
@@ -1224,40 +1222,19 @@ class ExternalPlaybackTracker @Inject constructor(
         }
     }
 
-    private suspend fun buildScrobbleItem(metadata: ExternalPlaybackMetadata): TraktScrobbleItem? {
-        val parsedIds = parseContentIds(metadata.contentId)
-        val ids = toTraktIds(parsedIds)
-        if (ids.trakt == null && ids.imdb.isNullOrBlank() && ids.tmdb == null) return null
-
-        val parsedYear = extractYear(metadata.year)
-        val isEpisode = metadata.contentType.lowercase() in listOf("series", "tv") &&
-            metadata.season != null && metadata.episode != null
-
-        return if (isEpisode) {
-            val mapped = traktEpisodeMappingService.prefetchEpisodeMapping(
-                contentId = metadata.contentId,
-                contentType = metadata.contentType,
-                videoId = metadata.videoId,
-                season = metadata.season,
-                episode = metadata.episode
-            )
-            val effectiveSeason = mapped?.season ?: metadata.season ?: return null
-            val effectiveEpisode = mapped?.episode ?: metadata.episode ?: return null
-
-            TraktScrobbleItem.Episode(
-                showTitle = metadata.contentName,
-                showYear = parsedYear,
-                showIds = ids,
-                season = effectiveSeason,
-                number = effectiveEpisode,
-                episodeTitle = metadata.episodeTitle
-            )
-        } else {
-            TraktScrobbleItem.Movie(
-                title = metadata.contentName,
-                year = parsedYear,
-                ids = ids
-            )
-        }
-    }
+    private fun buildScrobbleItem(metadata: ExternalPlaybackMetadata): TrackingMediaReference? =
+        buildTrackingMediaReference(
+            contentType = metadata.contentType,
+            parentMetaId = metadata.contentId,
+            videoId = metadata.videoId,
+            title = metadata.contentName,
+            releaseInfo = metadata.year,
+            seasonNumber = metadata.season,
+            episodeNumber = metadata.episode,
+            episodeTitle = metadata.episodeTitle
+        )
+            .takeIf { media ->
+                media.hasResolvableIdentity &&
+                    (media.kind == TrackingMediaKind.MOVIE || media.episode != null)
+            }
 }
