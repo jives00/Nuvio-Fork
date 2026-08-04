@@ -352,6 +352,7 @@ class PlayerRuntimeController(
     internal var metaVideos: List<Video> = emptyList()
     internal var metaGenres: List<String> = emptyList()
     internal var metaCountry: String? = null
+    internal var metaFetchJob: Job? = null
     internal var nextEpisodeVideo: Video? = null
     internal var userPausedManually = false
 
