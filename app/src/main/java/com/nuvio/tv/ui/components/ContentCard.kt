@@ -65,7 +65,6 @@ import coil3.request.ImageRequest
 import coil3.request.CachePolicy
 import coil3.request.crossfade
 import com.nuvio.tv.ui.util.recompositionHighlighter
-import com.nuvio.tv.ui.screens.home.LocalFastScrollActive
 import com.nuvio.tv.domain.model.PLACEHOLDER_IMAGE_URL
 import com.nuvio.tv.ui.util.rememberLongPressKeyTracker
 import kotlinx.coroutines.delay
@@ -166,7 +165,6 @@ fun ContentCard(
 
     // Only pay the animation cost on the card that is actually focused/expanding.
     // Unfocused cards snap directly to baseCardWidth — no animation state overhead.
-    val isFastScrollActive = LocalFastScrollActive.current.value
     val animatedCardWidth = when {
         !focusedPosterBackdropExpandEnabled -> baseCardWidth
         !isFocused && !isBackdropExpanded -> baseCardWidth
@@ -238,12 +236,15 @@ fun ContentCard(
         }
         val revalidationKey = com.nuvio.tv.core.image.rememberImageRevalidationKey(imageUrl)
         val imageModel = remember(imageUrl, requestWidthPx, requestHeightPx, revalidationKey) {
-            ImageRequest.Builder(context)
+            val builder = ImageRequest.Builder(context)
                 .data(imageUrl)
-                .crossfade(revalidationKey == 0)
+                .crossfade(true)
                 .memoryCacheKey("${imageUrl}_${requestWidthPx}x${requestHeightPx}_v$revalidationKey")
                 .size(width = requestWidthPx, height = requestHeightPx)
-                .build()
+            if (revalidationKey > 0) {
+                builder.placeholderMemoryCacheKey("${imageUrl}_${requestWidthPx}x${requestHeightPx}_v${revalidationKey - 1}")
+            }
+            builder.build()
         }
         val logoRequestHeightPx = remember(density) {
             with(density) { NuvioTheme.spacing.xxxl.roundToPx() }
