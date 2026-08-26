@@ -17,9 +17,7 @@ import com.nuvio.tv.domain.repository.CatalogRepository
 import com.nuvio.tv.domain.repository.WatchProgressRepository
 import com.nuvio.tv.ui.components.posteroptions.PosterOptionsController
 import io.mockk.every
-import io.mockk.coVerify
 import io.mockk.mockk
-import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
@@ -27,21 +25,27 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.StandardTestDispatcher
+import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
+import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
-import kotlinx.coroutines.test.runCurrent
 import org.junit.After
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
-import java.util.concurrent.atomic.AtomicInteger
 
+private const val TITLE = "The Wolf of Wall Street"
+
+/**
+ * Suggestions are pushed to the keyboard's own suggestion strip while the user types, so they
+ * have to survive live search. Live search runs the same performSearch() that a submit runs,
+ * and that used to retire the strip roughly 200ms after each fetch filled it.
+ */
 @OptIn(ExperimentalCoroutinesApi::class)
-class SearchViewModelConcurrencyTest {
+class SearchViewModelSuggestionsTest {
 
     private val mainDispatcher = StandardTestDispatcher()
 
@@ -56,64 +60,115 @@ class SearchViewModelConcurrencyTest {
     }
 
     @Test
-    fun `older search outer job cannot leave newer multi-word search loading`() = runTest {
-        val firstAddonLookup = CompletableDeferred<Unit>()
-        val addon = searchableAddon()
-        val addonRepository = GatedAddonRepository(addon, firstAddonLookup)
-        val catalogRepository = ImmediateCatalogRepository(addon)
-        val viewModel = newViewModel(addonRepository, catalogRepository)
+    fun `live search leaves the suggestions it just fetched in place`() = runTest {
+        val viewModel = newViewModel()
 
-        // This is the Fire TV keyboard/voice sequence: the field receives the text and the
-        // submitted query immediately follows it.
-        viewModel.onEvent(SearchEvent.QueryChanged("Deep"))
-        viewModel.onEvent(SearchEvent.SubmitSearch)
-        runCurrent()
-
-        // Q1 is suspended in the addon lookup; before the fix, the outer coroutine owning this
-        // lookup was untracked and could resume after Q2.
-        viewModel.onEvent(SearchEvent.QueryChanged("Deep Cover"))
-        viewModel.onEvent(SearchEvent.SubmitSearch)
-        runCurrent()
+        viewModel.onEvent(SearchEvent.QueryChanged("wolf"))
         advanceUntilIdle()
 
-        // Q2 has completed and is no longer loading before the stale Q1 outer coroutine resumes.
-        assertEquals("Deep Cover", viewModel.uiState.value.submittedQuery)
-        assertFalse(viewModel.uiState.value.isSearching)
-        assertTrue(catalogRepository.queries.contains("Deep Cover"))
+        // Live search has run by now: it owns the results, not the suggestion strip.
+        assertEquals("wolf", viewModel.uiState.value.submittedQuery)
+        assertEquals(listOf(TITLE), viewModel.uiState.value.suggestions)
+    }
 
-        // Completing the stale Q1 lookup must not revive work for the old generation.
-        firstAddonLookup.complete(Unit)
-        advanceUntilIdle()
+    /**
+     * Walks the two debounces one at a time rather than asserting the settled state, so it fails
+     * on the original mechanism: the strip filling at 150ms and the live search emptying it at
+     * 350ms. An end-state assertion alone would pass even if the ordering were wrong.
+     */
+    @Test
+    fun `the strip fills before live search runs and survives it`() = runTest {
+        val viewModel = newViewModel()
 
-        assertEquals("Deep Cover", viewModel.uiState.value.submittedQuery)
-        assertFalse(viewModel.uiState.value.isSearching)
-        assertEquals(listOf("Deep Cover"), catalogRepository.queries.distinct())
+        viewModel.onEvent(SearchEvent.QueryChanged("wolf"))
+
+        // Past SUGGESTION_DEBOUNCE_MS, short of LIVE_SEARCH_DEBOUNCE_MS. An empty submittedQuery
+        // is what pins the ordering: the strip is full while live search is still pending.
+        advanceTimeBy(200)
+        runCurrent()
+        assertEquals(listOf(TITLE), viewModel.uiState.value.suggestions)
+        assertEquals("", viewModel.uiState.value.submittedQuery)
+
+        // Past LIVE_SEARCH_DEBOUNCE_MS. This is the run that used to empty the strip.
+        advanceTimeBy(200)
+        runCurrent()
+        assertEquals("wolf", viewModel.uiState.value.submittedQuery)
+        assertEquals(listOf(TITLE), viewModel.uiState.value.suggestions)
     }
 
     @Test
-    fun `moving from text input to live-search results remembers the query`() = runTest {
-        val addon = searchableAddon()
-        val history = mockk<SearchHistoryDataStore>(relaxed = true)
-        every { history.recentSearches } returns flowOf(emptyList())
-        val viewModel = newViewModel(
-            addonRepository = GatedAddonRepository(addon, CompletableDeferred(Unit)),
-            catalogRepository = ImmediateCatalogRepository(addon),
-            history = history
-        )
+    fun `suggestions survive every keystroke of a word`() = runTest {
+        val viewModel = newViewModel()
 
-        viewModel.onEvent(SearchEvent.QueryChanged("Deep Cover"))
-        advanceUntilIdle()
-        viewModel.onEvent(SearchEvent.RememberSearchFromTextInput)
-        advanceUntilIdle()
-
-        coVerify(exactly = 1) { history.saveRecentSearch("Deep Cover", 8) }
+        listOf("wo", "wol", "wolf").forEach { typed ->
+            viewModel.onEvent(SearchEvent.QueryChanged(typed))
+            advanceUntilIdle()
+            assertEquals("cleared while typing \"$typed\"", listOf(TITLE), viewModel.uiState.value.suggestions)
+        }
     }
 
-    private fun newViewModel(
-        addonRepository: AddonRepository,
-        catalogRepository: CatalogRepository,
-        history: SearchHistoryDataStore = mockk(relaxed = true)
-    ): SearchViewModel {
+    @Test
+    fun `submitting retires the suggestions`() = runTest {
+        val viewModel = newViewModel()
+
+        viewModel.onEvent(SearchEvent.QueryChanged("wolf"))
+        advanceUntilIdle()
+        assertTrue(viewModel.uiState.value.suggestions.isNotEmpty())
+
+        viewModel.onEvent(SearchEvent.SubmitSearch)
+        advanceUntilIdle()
+
+        assertEquals(emptyList<String>(), viewModel.uiState.value.suggestions)
+    }
+
+    @Test
+    fun `dropping below the minimum query length retires the suggestions`() = runTest {
+        val viewModel = newViewModel()
+
+        viewModel.onEvent(SearchEvent.QueryChanged("wolf"))
+        advanceUntilIdle()
+        assertTrue(viewModel.uiState.value.suggestions.isNotEmpty())
+
+        viewModel.onEvent(SearchEvent.QueryChanged("w"))
+        advanceUntilIdle()
+
+        assertEquals(emptyList<String>(), viewModel.uiState.value.suggestions)
+    }
+
+    @Test
+    fun `clearing the field retires the suggestions and the submitted query`() = runTest {
+        val viewModel = newViewModel()
+
+        viewModel.onEvent(SearchEvent.QueryChanged("wolf"))
+        advanceUntilIdle()
+        assertTrue(viewModel.uiState.value.suggestions.isNotEmpty())
+
+        viewModel.onEvent(SearchEvent.QueryChanged(""))
+        advanceUntilIdle()
+
+        assertEquals(emptyList<String>(), viewModel.uiState.value.suggestions)
+        assertEquals("", viewModel.uiState.value.submittedQuery)
+    }
+
+    @Test
+    fun `a query that matches nothing retires the previous strip`() = runTest {
+        val viewModel = newViewModel()
+
+        viewModel.onEvent(SearchEvent.QueryChanged("wolf"))
+        advanceUntilIdle()
+        assertEquals(listOf(TITLE), viewModel.uiState.value.suggestions)
+
+        // Long enough to keep searching, but nothing answers it. The strip must not go on
+        // captioning the earlier query's results.
+        viewModel.onEvent(SearchEvent.QueryChanged("wolfx"))
+        advanceUntilIdle()
+
+        assertEquals(emptyList<String>(), viewModel.uiState.value.suggestions)
+    }
+
+    private fun newViewModel(): SearchViewModel {
+        val addon = searchableAddon()
+
         val layoutPreferences = mockk<LayoutPreferenceDataStore>()
         every { layoutPreferences.discoverLocation } returns flowOf(com.nuvio.tv.domain.model.DiscoverLocation.OFF)
         every { layoutPreferences.posterCardWidthDp } returns flowOf(126)
@@ -124,6 +179,7 @@ class SearchViewModelConcurrencyTest {
         every { layoutPreferences.catalogTypeSuffixEnabled } returns flowOf(true)
         every { layoutPreferences.hideUnreleasedContent } returns flowOf(false)
 
+        val history = mockk<SearchHistoryDataStore>(relaxed = true)
         every { history.recentSearches } returns flowOf(emptyList())
 
         val watchProgress = mockk<WatchProgressRepository>()
@@ -133,8 +189,8 @@ class SearchViewModelConcurrencyTest {
         every { watchedSeries.fullyWatchedSeriesIds } returns MutableStateFlow(emptySet())
 
         return SearchViewModel(
-            addonRepository = addonRepository,
-            catalogRepository = catalogRepository,
+            addonRepository = SingleAddonRepository(addon),
+            catalogRepository = TitleCatalogRepository(addon),
             metaRepository = mockk(relaxed = true),
             discoverSelectionDataStore = mockk(relaxed = true),
             layoutPreferenceDataStore = layoutPreferences,
@@ -146,19 +202,8 @@ class SearchViewModelConcurrencyTest {
         )
     }
 
-    private class GatedAddonRepository(
-        private val addon: Addon,
-        private val firstLookupGate: CompletableDeferred<Unit>
-    ) : AddonRepository {
-        private val lookups = AtomicInteger()
-
-        override fun getInstalledAddons(): Flow<List<Addon>> = flow {
-            if (lookups.getAndIncrement() == 0) {
-                firstLookupGate.await()
-            }
-            emit(listOf(addon))
-        }
-
+    private class SingleAddonRepository(private val addon: Addon) : AddonRepository {
+        override fun getInstalledAddons(): Flow<List<Addon>> = flowOf(listOf(addon))
         override suspend fun fetchAddon(baseUrl: String): NetworkResult<Addon> = error("unused")
         override suspend fun addAddon(url: String) = error("unused")
         override suspend fun removeAddon(url: String) = error("unused")
@@ -166,11 +211,9 @@ class SearchViewModelConcurrencyTest {
         override suspend fun setAddonEnabled(url: String, enabled: Boolean) = error("unused")
     }
 
-    private class ImmediateCatalogRepository(
-        private val addon: Addon
-    ) : CatalogRepository {
-        val queries = mutableListOf<String>()
-
+    /** Answers with one title, and only for queries that title contains, so both the filled
+     *  and the empty strip are reachable from a test. */
+    private class TitleCatalogRepository(private val addon: Addon) : CatalogRepository {
         override fun getCatalog(
             addonBaseUrl: String,
             addonId: String,
@@ -183,24 +226,24 @@ class SearchViewModelConcurrencyTest {
             extraArgs: Map<String, String>,
             supportsSkip: Boolean
         ): Flow<NetworkResult<CatalogRow>> = flow {
-            val query = extraArgs.getValue("search")
-            queries += query
+            val query = extraArgs["search"].orEmpty()
+            val matches = query.isNotBlank() && TITLE.contains(query, ignoreCase = true)
             emit(NetworkResult.Loading)
-            emit(NetworkResult.Success(row(addon, query)))
+            emit(NetworkResult.Success(row(matches)))
         }
 
-        private fun row(addon: Addon, query: String): CatalogRow = CatalogRow(
+        private fun row(matches: Boolean): CatalogRow = CatalogRow(
             addonId = addon.id,
             addonName = addon.displayName,
             addonBaseUrl = addon.baseUrl,
             catalogId = addon.catalogs.single().id,
             catalogName = addon.catalogs.single().name,
             type = ContentType.MOVIE,
-            items = listOf(
+            items = if (!matches) emptyList() else listOf(
                 MetaPreview(
-                    id = query,
+                    id = "tt0993846",
                     type = ContentType.MOVIE,
-                    name = query,
+                    name = TITLE,
                     poster = null,
                     posterShape = PosterShape.POSTER,
                     background = null,
