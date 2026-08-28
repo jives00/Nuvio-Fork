@@ -1751,6 +1751,11 @@ fun PlayerRuntimeController.onEvent(event: PlayerEvent) {
         PlayerEvent.OnDismissStreamInfo -> {
             _uiState.update { it.copy(showStreamInfoOverlay = false) }
         }
+        PlayerEvent.OnTogglePlayerStatsHud -> {
+            // Writing the setting here would hide the button along with the overlay and leave no way
+            // back without going to settings mid playback.
+            _uiState.update { it.copy(playerStatsHudVisible = !it.playerStatsHudVisible) }
+        }
     }
 }
 
@@ -1789,6 +1794,10 @@ internal fun PlayerRuntimeController.buildStreamInfoData(): StreamInfoData {
         videoHeight = videoHeight,
         videoFrameRate = state.detectedFrameRate.takeIf { it > 0f },
         videoBitrate = videoBitrate,
+        fileBitrate = PlayerBitrateEstimator.fileBitrateBps(
+            currentVideoSize,
+            playbackTimeline.value.duration
+        ),
         audioCodec = selectedAudio?.codec,
         audioChannels = selectedAudio?.channelCount?.let {
             CustomDefaultTrackNameProvider.getChannelLayoutName(it)
