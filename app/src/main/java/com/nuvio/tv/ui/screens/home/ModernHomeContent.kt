@@ -255,15 +255,22 @@ fun ModernHomeContent(
     // Disabled when the sidebar owns focus (expanded) so Back can exit the app.
     val backScrollScope = rememberCoroutineScope()
     val contentHasFocus = remember { mutableStateOf(false) }
+    val fullscreenTrailerPlaying = remember { mutableStateOf(false) }
+    val fullscreenTrailerDismiss = remember { mutableStateOf<(() -> Unit)?>(null) }
     val shouldInterceptBack = remember {
         derivedStateOf {
             if (!contentHasFocus.value) return@derivedStateOf false
+            if (fullscreenTrailerPlaying.value) return@derivedStateOf true
             val rowKey = activeRowKey.value ?: return@derivedStateOf false
             val itemIndex = focusedItemByRow[rowKey] ?: 0
             itemIndex > 0
         }
     }
     BackHandler(enabled = shouldInterceptBack.value) {
+        if (fullscreenTrailerPlaying.value) {
+            fullscreenTrailerDismiss.value?.invoke()
+            return@BackHandler
+        }
         val rowKey = activeRowKey.value ?: return@BackHandler
         val listState = rowListStates[rowKey]
         focusedItemByRow[rowKey] = 0
@@ -358,18 +365,26 @@ fun ModernHomeContent(
     // guarded by an inequality, so it settles after one extra pass.
     previousItemKeysByRow.keys.retainAll(activeRowKeys)
     carouselRows.list.forEach { row ->
-        val currentKeys = row.items.list.map { it.key }
+        // Use item identity (from payload) for relocation instead of composable key,
+        // because composable keys are index-based for shimmer→real stability.
+        val currentIdentities = row.items.list.map { item ->
+            when (val p = item.payload) {
+                is ModernPayload.Catalog -> "${p.itemType}:${p.itemId}"
+                is ModernPayload.CollectionFolder -> "folder:${p.folderId}"
+                is ModernPayload.ContinueWatching -> "cw:${p.item.hashCode()}"
+            }
+        }
         val storedIdx = focusedItemByRow[row.key]
         val relocated = if (storedIdx != null) {
             previousItemKeysByRow[row.key]
                 ?.getOrNull(storedIdx)
-                ?.let { currentKeys.indexOf(it) }
+                ?.let { currentIdentities.indexOf(it) }
                 ?.takeIf { it >= 0 }
         } else null
         if (relocated != null && relocated != storedIdx) {
             focusedItemByRow[row.key] = relocated
         }
-        previousItemKeysByRow[row.key] = currentKeys
+        previousItemKeysByRow[row.key] = currentIdentities
     }
 
     LaunchedEffect(carouselRows, focusState.hasSavedFocus) {
@@ -818,9 +833,14 @@ fun ModernHomeContent(
                         heroTrailerFirstFrameRendered
                 }
             }
-            BackHandler(enabled = isTrailerPlayingFullscreenState.value) {
-                focusedCatalogSelection.value = null
-                expandedCatalogFocusKey.value = null
+            // Keep the top-level flag in sync so the row-scroll BackHandler
+            // stays disabled while a fullscreen trailer is visible.
+            fullscreenTrailerPlaying.value = isTrailerPlayingFullscreenState.value
+            fullscreenTrailerDismiss.value = remember(focusedCatalogSelection, expandedCatalogFocusKey) {
+                {
+                    focusedCatalogSelection.value = null
+                    expandedCatalogFocusKey.value = null
+                }
             }
             val liveHeroSceneState = remember(
                 resolvedHeroState,
@@ -957,14 +977,9 @@ fun ModernHomeContent(
                 object : BringIntoViewSpec {
                     override val scrollAnimationSpec: AnimationSpec<Float> = defaultBringIntoViewSpec.scrollAnimationSpec
                     override fun calculateScrollDistance(offset: Float, size: Float, containerSize: Float): Float {
-                        // Relaxed vertical scroll: only scroll if the leading edge of the row header
-                        // is not at the target inset.
                         val currentLeadingEdge = offset
                         if (abs(currentLeadingEdge - topInsetPx) < 1f) return 0f
                         val distance = currentLeadingEdge - topInsetPx
-                        // When the list can't scroll backwards and the requested distance
-                        // is negative, clamp to 0 to avoid fighting the scroll bounds
-                        // (prevents first-row jank from impossible scroll-up attempts).
                         if (distance < 0f && !verticalRowListState.canScrollBackward) return 0f
                         return distance
                     }
