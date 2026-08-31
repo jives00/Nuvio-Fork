@@ -150,6 +150,7 @@ android {
         buildConfigField("String", "SPONSOR_NAMES", buildConfigString(sponsorNames))
         buildConfigField("String", "SENTRY_DSN", buildConfigString(sentryDsn))
 
+<<<<<<< HEAD
         // [FORK] Direct scrobble endpoint config
         buildConfigField("String", "SCROBBLE_API_URL", "\"${localProperties.getProperty("SCROBBLE_API_URL", "")}\"")
         buildConfigField("String", "SCROBBLE_API_KEY", "\"${localProperties.getProperty("SCROBBLE_API_KEY", "")}\"")
@@ -157,6 +158,11 @@ android {
         // [FORK] In-app updater points to fork repo, not upstream
         buildConfigField("String", "GITHUB_OWNER", "\"jives00\"")
         buildConfigField("String", "GITHUB_REPO", "\"Nuvio-Fork\"")
+=======
+        // In-app updater (GitHub Releases)
+        buildConfigField("String", "GITHUB_OWNER", "\"NuvioMedia\"")
+        buildConfigField("String", "GITHUB_REPO", "\"NuvioTV\"")
+>>>>>>> upstream/dev
     }
 
     flavorDimensions += "distribution"
