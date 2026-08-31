@@ -9,6 +9,9 @@ permissions:
 
 jobs:
   validate_pr_body:
+    # [FORK] Skip the sync bot's conflict PRs -- its body has no template
+    # sections, so this always fails and emails us for nothing.
+    if: ${{ !startsWith(github.head_ref, 'upstream-sync/') }}
     runs-on: ubuntu-latest
     steps:
       - name: Validate required PR sections

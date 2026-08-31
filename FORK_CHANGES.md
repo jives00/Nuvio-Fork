@@ -155,6 +155,20 @@ directScrobbleService.stop(scrobbleItem, progressPercent = progressPercent, paus
 ```
 This is a one-shot external-playback snapshot report, not a live pause/resume session — always `paused = false` so it clears immediately rather than lingering in `now_playing`.
 
+#### `.github/workflows/pr-template-check.yml` and `.github/workflows/pr-full-debug-build.yml`
+
+Both are upstream's contributor-facing PR workflows. In the fork the only PRs are the ones
+`sync-upstream.yml` opens for merge conflicts, and both workflows *always* fail on those — the bot's
+PR body has none of the required template sections, and the conflict branch contains unresolved
+conflict markers, so it can't compile. Each failure sent its own email on top of the sync workflow's
+own notification. Job-level guard on each:
+
+```yaml
+if: ${{ !startsWith(github.head_ref, 'upstream-sync/') }}
+```
+
+Keep this guard when an upstream merge touches either file. Real PRs against `dev` are unaffected.
+
 ---
 
 ## Local Config (not committed)

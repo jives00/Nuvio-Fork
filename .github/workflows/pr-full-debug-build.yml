@@ -18,6 +18,9 @@ concurrency:
 jobs:
   full-debug-build:
     name: Build fullDebug APK
+    # [FORK] Skip the sync bot's conflict PRs -- the branch contains unresolved
+    # conflict markers, so the build always fails and emails us for nothing.
+    if: ${{ !startsWith(github.head_ref, 'upstream-sync/') }}
     runs-on: ubuntu-latest
 
     steps:
