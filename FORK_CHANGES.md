@@ -62,6 +62,7 @@ Any APK installed before this change was signed with a randomly-generated CI deb
 |---|---|
 | `app/src/main/java/com/nuvio/tv/data/remote/api/DirectScrobbleApi.kt` | Retrofit interface — `POST start` and `POST stop` endpoints with `X-Api-Key` header |
 | `app/src/main/java/com/nuvio/tv/data/repository/DirectScrobbleService.kt` | Service that calls the API; no-ops silently if `SCROBBLE_API_URL` is blank |
+| `app/src/main/java/com/nuvio/tv/core/util/ForkBulkMarkFilter.kt` | `List<Video>.airedForBulkMark()` — drops unaired episodes from bulk "mark watched" actions |
 
 These are entirely new files. They will never conflict on merge.
 
@@ -155,6 +156,34 @@ directScrobbleService.stop(scrobbleItem, progressPercent = progressPercent, paus
 ```
 This is a one-shot external-playback snapshot report, not a live pause/resume session — always `paused = false` so it clears immediately rather than lingering in `now_playing`.
 
+#### Unaired-episode bulk-mark fix
+
+Two files, one change each — both call `airedForBulkMark()` on the episode list a bulk "mark watched"
+action is about to write:
+
+- `app/src/main/java/com/nuvio/tv/ui/components/posteroptions/PosterOptionsController.kt` — `markSeriesWatched()`
+- `app/src/main/java/com/nuvio/tv/ui/screens/detail/MetaDetailsViewModel.kt` — `markSeasonWatched()`,
+  `markPreviousEpisodesWatched()`, `markPreviousSeasonsWatched()`
+
+**The bug (upstream, reported 2026-09-03):** a fully-watched show would show its *next* season as fully
+watched the moment that season aired. Addon metadata (Cinemeta/TMDB) lists announced future seasons and
+their episodes ahead of time. Upstream's bulk-mark paths filtered only on `season > 0`, so "Mark as
+watched" on a series poster wrote a completed `WatchProgress` for every announced-but-unaired episode
+too. `isSeasonFullyWatched()` later read those back and reported the new season as done.
+
+Upstream already has the right predicate — `Meta.watchableEpisodes()` excludes `available == false` and
+future `released` dates — it just isn't applied on the write path. `airedForBulkMark()` reuses those
+same rules. Unknown release dates stay markable, so addons that omit dates are unaffected.
+
+**Not** applied to `unmarkSeriesWatched()` / the season-unmark paths — unmarking everything, unaired
+included, is the desired cleanup behavior and is how existing bad data gets cleared.
+
+Known cosmetic edge: bulk-marking a season that is entirely unaired now filters to an empty list and
+shows the "all episodes watched" toast. Harmless, and fixing it properly needs a new translated string.
+
+Re-apply after any upstream merge that touches these mark functions: append `.airedForBulkMark()` to
+the episode list each one builds, before the "already watched" filter.
+
 #### `.github/workflows/pr-template-check.yml` and `.github/workflows/pr-full-debug-build.yml`
 
 Both are upstream's contributor-facing PR workflows. In the fork the only PRs are the ones
@@ -204,6 +233,8 @@ When pulling upstream changes from `NuvioMedia/NuvioTV`:
 6. **`ExternalPlaybackTracker.kt`** — If upstream changes the scrobble block, ensure `directScrobbleService` calls remain **outside** the Trakt `isAuthenticated` guard, and that `stop(...)` keeps `paused = false`.
 
 7. **`TraktScrobbleDtos.kt`** — If upstream restructures `TraktScrobbleRequestDto`, keep the `paused: Boolean = false` field; it has a default so it's additive and won't conflict unless upstream touches the same lines.
+
+8. **`PosterOptionsController.kt` / `MetaDetailsViewModel.kt`** — `ForkBulkMarkFilter.kt` is a new file and never conflicts, but its four call sites are edits inside upstream functions. If upstream reworks `markSeriesWatched`, `markSeasonWatched`, `markPreviousEpisodesWatched`, or `markPreviousSeasonsWatched`, re-append `.airedForBulkMark()` to the episode list each builds. Losing this silently regresses the "new season shows as fully watched" bug — nothing fails to compile, and the symptom only appears months later when a season actually airs.
 
 ---
 

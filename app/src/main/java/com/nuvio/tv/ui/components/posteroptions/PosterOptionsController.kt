@@ -6,6 +6,7 @@ import com.nuvio.tv.core.tmdb.TmdbService
 import com.nuvio.tv.core.tracking.TrackingMembershipRemovalConfirmation
 import com.nuvio.tv.core.tracking.mergeTrackingMembershipWithTabs
 import com.nuvio.tv.core.tracking.toggleTrackingMembershipSelection
+import com.nuvio.tv.core.util.airedForBulkMark // [FORK]
 import com.nuvio.tv.data.local.WatchedSeriesStateHolder
 import com.nuvio.tv.data.repository.parseContentIds
 import com.nuvio.tv.domain.model.LibraryEntryInput
@@ -471,7 +472,11 @@ class PosterOptionsController @Inject constructor(
     }
 
     private suspend fun markSeriesWatched(item: MetaPreview) {
-        val episodes = fetchSeriesEpisodes(item).filter { it.season != null && it.episode != null && it.season != 0 }
+        // [FORK] airedForBulkMark() drops announced-but-unaired episodes so a future season
+        // is not pre-marked watched the moment it airs.
+        val episodes = fetchSeriesEpisodes(item)
+            .filter { it.season != null && it.episode != null && it.season != 0 }
+            .airedForBulkMark()
         if (episodes.isEmpty()) {
             watchProgressRepository.markAsCompleted(buildCompletedMovieProgress(item))
             return

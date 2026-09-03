@@ -43,6 +43,7 @@ import com.nuvio.tv.data.trailer.TrailerService
 import com.nuvio.tv.core.util.withAppLocale
 import com.nuvio.tv.core.util.isUnreleased
 import com.nuvio.tv.core.util.selectEpisodeReleaseValue
+import com.nuvio.tv.core.util.airedForBulkMark // [FORK]
 import java.time.LocalDate
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.CancellationException
@@ -2420,11 +2421,12 @@ class MetaDetailsViewModel @Inject constructor(
         val meta = _uiState.value.meta ?: return
         suppressSeasonAutoSwitch = true
         viewModelScope.launch {
+            // [FORK] Never bulk-mark episodes that have not aired yet.
             val episodes = if (meta.apiType.equals("other", ignoreCase = true)) {
                 _uiState.value.episodesForSeason.filter { it.season == season && it.episode != null }
             } else {
                 meta.videos.filter { it.season == season && it.episode != null }
-            }
+            }.airedForBulkMark()
             val unwatched = episodes.filter { video ->
                 val s = video.season!!
                 val e = video.episode!!
@@ -2515,6 +2517,7 @@ class MetaDetailsViewModel @Inject constructor(
         val targetEpisode = video.episode ?: return
 
         viewModelScope.launch {
+            // [FORK] Never bulk-mark episodes that have not aired yet.
             val previous = if (meta.apiType.equals("other", ignoreCase = true)) {
                 _uiState.value.episodesForSeason.filter { v ->
                     v.season == targetSeason && v.episode != null && v.episode < targetEpisode
@@ -2523,7 +2526,7 @@ class MetaDetailsViewModel @Inject constructor(
                 meta.videos.filter { v ->
                     v.season == targetSeason && v.episode != null && v.episode < targetEpisode
                 }
-            }
+            }.airedForBulkMark()
             val unwatched = previous.filter { v ->
                 val s = v.season!!
                 val e = v.episode!!
@@ -2564,11 +2567,12 @@ class MetaDetailsViewModel @Inject constructor(
         val meta = _uiState.value.meta ?: return
         suppressSeasonAutoSwitch = true
         viewModelScope.launch {
+            // [FORK] Never bulk-mark episodes that have not aired yet.
             val episodes = if (meta.apiType.equals("other", ignoreCase = true)) {
                 _uiState.value.episodesForSeason.filter { it.season != null && it.season < targetSeason && it.season > 0 && it.episode != null }
             } else {
                 meta.videos.filter { it.season != null && it.season < targetSeason && it.season > 0 && it.episode != null }
-            }
+            }.airedForBulkMark()
             val unwatched = episodes.filter { video ->
                 val s = video.season!!
                 val e = video.episode!!
