@@ -95,6 +95,7 @@ class PlayerViewModel @Inject constructor(
     private val externalPlaybackTracker: com.nuvio.tv.core.player.ExternalPlaybackTracker,
     private val subtitleFileCache: com.nuvio.tv.core.player.SubtitleFileCache,
     private val tvRecommendationManager: com.nuvio.tv.core.recommendations.TvRecommendationManager,
+    profileManager: com.nuvio.tv.core.profile.ProfileManager,
     savedStateHandle: SavedStateHandle
 ) : ViewModel() {
 
@@ -139,6 +140,8 @@ class PlayerViewModel @Inject constructor(
         streamBadgePresentation = streamBadgePresentation,
         playbackIssueReportRepository = playbackIssueReportRepository,
         tvRecommendationManager = tvRecommendationManager,
+        profileId = savedStateHandle.get<String>("profileId")?.toIntOrNull()
+            ?: profileManager.activeProfileId.value,
         savedStateHandle = savedStateHandle,
         scope = viewModelScope
     )
@@ -318,7 +321,8 @@ class PlayerViewModel @Inject constructor(
             season = controller.currentSeason,
             episode = controller.currentEpisode,
             episodeTitle = controller.currentEpisodeTitle,
-            year = controller.year
+            year = controller.year,
+            profileId = controller.profileId
         )
         val headers = controller.getCurrentHeaders()
         val nextEpisodeSnapshot = controller.metaVideos
