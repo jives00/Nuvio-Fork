@@ -154,6 +154,7 @@ import com.nuvio.tv.domain.model.ExperienceMode
 import com.nuvio.tv.domain.model.MemberAccess
 import com.nuvio.tv.domain.model.SettingsUiStyle
 import com.nuvio.tv.domain.model.resolveAppTheme
+import com.nuvio.tv.domain.model.resolveCustomThemeColors
 import com.nuvio.tv.domain.deeplink.AppDeepLink
 import com.nuvio.tv.domain.repository.AddonRepository
 import com.nuvio.tv.ui.components.NuvioScrollDefaults
@@ -442,7 +443,8 @@ open class MainActivity : ComponentActivity() {
                     memberAccessRepository.access
                 ) { selection, memberAccess ->
                     selection.copy(
-                        theme = resolveAppTheme(selection.theme, memberAccess.entitlements, memberAccess.tier)
+                        theme = resolveAppTheme(selection.theme, memberAccess.entitlements),
+                        customColors = resolveCustomThemeColors(selection.customColors, memberAccess.tier)
                     ) to memberAccess
                 }
                 // Group flows into two batches to reduce intermediate flow allocations.
@@ -544,11 +546,13 @@ open class MainActivity : ComponentActivity() {
                         fontScale = systemDensity.fontScale.coerceAtMost(MAX_SUPPORTED_FONT_SCALE)
                     )
                 }
+                val highlighterEnabled = BuildConfig.IS_DEBUG_BUILD && mainUiPrefs.composeHighlighterEnabled
+                com.nuvio.tv.ui.util.RecompositionHighlighterFlag.enabled = highlighterEnabled
                 CompositionLocalProvider(
                     LocalDensity provides clampedFontScaleDensity,
                     LocalBringIntoViewSpec provides bringIntoViewSpec,
                     LocalFastHorizontalNavigationEnabled provides mainUiPrefs.fastHorizontalNavigationEnabled,
-                    LocalRecompositionHighlighterEnabled provides (BuildConfig.IS_DEBUG_BUILD && mainUiPrefs.composeHighlighterEnabled),
+                    LocalRecompositionHighlighterEnabled provides highlighterEnabled,
                     LocalCardDepthStyle provides mainUiPrefs.cardDepthStyle,
                     LocalMemberAccess provides mainUiPrefs.memberAccess,
                     com.nuvio.tv.core.player.LocalTrailerPlayerPool provides trailerPlayerPool
