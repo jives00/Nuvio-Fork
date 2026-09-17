@@ -60,12 +60,21 @@ jobs:
           CONFLICT_FILES=$(git diff --name-only --diff-filter=U)
           echo "Conflicting files: $CONFLICT_FILES"
 
-          if [ "$CONFLICT_FILES" = "app/build.gradle.kts" ]; then
+          # build.gradle.kts conflicts on nearly every upstream release (version bump).
+          # Resolve it whenever it appears rather than only when it is the sole
+          # conflict, then re-check: if anything else is still unmerged, this run
+          # genuinely needs a human and falls through to the conflict-PR path.
+          if echo "$CONFLICT_FILES" | grep -qx "app/build.gradle.kts"; then
             python3 scripts/resolve_upstream_conflict.py
             git add app/build.gradle.kts
+          fi
+
+          REMAINING=$(git diff --name-only --diff-filter=U)
+          if [ -z "$REMAINING" ]; then
             git commit -m "chore: merge upstream/${{ steps.check.outputs.upstream_branch }} (auto-resolved fork conflicts)"
             echo "resolved=true" >> "$GITHUB_OUTPUT"
           else
+            echo "Still conflicting after auto-resolve: $REMAINING"
             echo "resolved=false" >> "$GITHUB_OUTPUT"
           fi
 
