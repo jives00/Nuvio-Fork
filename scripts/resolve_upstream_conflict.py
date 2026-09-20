@@ -28,7 +28,7 @@ def resolve_block(match):
     if "versionCode" in theirs or "versionName" in theirs:
         resolved = re.sub(
             r'(versionName\s*=\s*")([^"]+)(")',
-            lambda m: m.group(1) + m.group(2).rstrip("-fork") + "-fork" + m.group(3),
+            lambda m: m.group(1) + m.group(2).removesuffix("-fork") + "-fork" + m.group(3),
             theirs,
         )
         return resolved

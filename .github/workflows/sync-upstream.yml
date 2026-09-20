@@ -69,6 +69,18 @@ jobs:
             git add app/build.gradle.kts
           fi
 
+          # Upstream CI workflows are never wanted here -- the post-merge step
+          # already restores ours wholesale. Conflicts under .github/workflows/
+          # therefore always resolve to ours.
+          for f in $CONFLICT_FILES; do
+            case "$f" in
+              .github/workflows/*)
+                git checkout --ours -- "$f"
+                git add -- "$f"
+                ;;
+            esac
+          done
+
           REMAINING=$(git diff --name-only --diff-filter=U)
           if [ -z "$REMAINING" ]; then
             git commit -m "chore: merge upstream/${{ steps.check.outputs.upstream_branch }} (auto-resolved fork conflicts)"
