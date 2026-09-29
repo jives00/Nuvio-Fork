@@ -101,20 +101,9 @@ jobs:
               failedRules.push("Check exactly one PR type.");
             }
             const checkedTypeText = prTypeChecked.join(" ");
-            const allowedTypes = [
-              "Reproducible bug fix",
-              "UI glitch/bug fix",
-              "Behavior bug/regression fix",
-              "Small maintenance only, with no UI or behavior change",
-              "Docs accuracy fix",
-              "Translation/localization only",
-              "Approved larger or directional change",
-              "Critical bug fix",
-            ];
-            const checkedType = checkedTypeText.replace(/^\s*[-*+]\s+\[[xX]\]\s+/, "").trim();
-            const allowedType = allowedTypes.includes(checkedType);
+            const allowedType = /Translation\/localization only|Critical bug fix/i.test(checkedTypeText);
             if (sectionContent("PR type") !== null && prTypeChecked.length === 1 && !allowedType) {
-              failedRules.push("Choose an accepted PR type from the template.");
+              failedRules.push("Current policy allows only translation/localization PRs or critical bug fixes.");
             }
 
             const impactContent = sectionContent("UI / behavior impact") || "";
@@ -134,19 +123,19 @@ jobs:
             }
 
             const issueRequired =
-              /bug fix|bug\/regression fix|approved larger or directional change/i.test(checkedTypeText);
+              /critical bug fix/i.test(checkedTypeText);
             const issueText = [
               cleanedContent("Issue or approval") || "",
               cleanedContent("Linked issues") || "",
             ].join(" ");
             if (issueRequired && !hasIssueReference(issueText)) {
-              failedRules.push("Bug fixes and approved changes must link an issue or approved feature request.");
+              failedRules.push("Critical bug fixes must link an issue.");
             }
 
             const uiChanged = checkedLines(impactContent).some((line) =>
               /UI changed only to fix a documented glitch\/bug|UI change has explicit maintainer approval/i.test(line)
             );
-            const screenshotText = (cleanedContent("Screenshots / Video") || "").toLowerCase().replace(/\.$/, "");
+            const screenshotText = (cleanedContent("Screenshots / Video") || "").toLowerCase();
             if (uiChanged && ["none", "n/a", "na", "not a ui change", "not applicable"].includes(screenshotText)) {
               failedRules.push("UI changes must include before/after screenshots or video.");
             }
