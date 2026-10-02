@@ -63,6 +63,7 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import com.nuvio.tv.core.util.withAppLocale
 import java.lang.ref.WeakReference
+import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicLong
 
 class PlayerRuntimeController(
@@ -497,6 +498,8 @@ class PlayerRuntimeController(
     internal var metaCountry: String? = null
     internal var metaFetchJob: Job? = null
     internal var nextEpisodeVideo: Video? = null
+    internal var nextEpisodePreloadJob: Job? = null
+    internal var nextEpisodePreloadTriggered: Boolean = false
     internal var userPausedManually = false
 
     internal var isInBackground: Boolean = false
@@ -540,6 +543,8 @@ class PlayerRuntimeController(
     internal var streamAutoPlayModeSetting: StreamAutoPlayMode = StreamAutoPlayMode.MANUAL
     internal var streamAutoPlayNextEpisodeEnabledSetting: Boolean = false
     internal var streamAutoPlayPreferBingeGroupForNextEpisodeSetting: Boolean = false
+    internal var streamAutoPlayTimeoutSecondsSetting: Int = 10
+    internal var preloadNextEpisodeSourcesSetting: Boolean = false
     internal var nextEpisodeThresholdModeSetting: NextEpisodeThresholdMode = NextEpisodeThresholdMode.PERCENTAGE
     internal var nextEpisodeThresholdPercentSetting: Float = 98f
     internal var nextEpisodeThresholdMinutesBeforeEndSetting: Float = 2f
@@ -584,6 +589,19 @@ class PlayerRuntimeController(
     internal var mpvTrackRefreshJob: Job? = null
     internal var mpvTrackRefreshInProgress: Boolean = false
     internal var pendingMpvHardRestartOnNextAttach: Boolean = false
+    internal var mpvEventRelay: MpvEventRelay? = null
+    internal var mpvEventRelayEpoch: Long = 0
+    internal var mpvSurfaceWaitTicks: Int = 0
+    internal var mpvIdleActiveTicks: Int = 0
+    internal var mpvStartupStallTicks: Int = 0
+    internal var mpvStartupAbsoluteTicks: Int = 0
+    internal var mpvLastDemuxerCacheSec: Double = 0.0
+    internal var mpvActivePlaylistEntryId: Long? = null
+    internal var mpvLastFileError: String? = null
+    internal var mpvErrorRecoveryArmed: Boolean = false
+    internal var mpvStableProgressResetJob: Job? = null
+    @Volatile internal var mpvLastErrorLogLine: String? = null
+    internal val mpvErrorHandlingInProgress = AtomicBoolean(false)
     internal var delayMpvResumeSeekUntilVideoTrack: Boolean = false
     internal var mpvDelayStartAfterAfrSwitch: Boolean = false
     internal var pauseOverlayJob: Job? = null
