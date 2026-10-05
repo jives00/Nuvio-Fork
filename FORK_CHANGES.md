@@ -1,7 +1,9 @@
 # Fork Changes — Direct Scrobble to Trakt App
 
 This fork adds direct scrobbling to a self-hosted Trakt clone app
-(`https://trakt.berek.xyz`) without requiring a Trakt.tv account.
+without requiring a Trakt.tv account. Scrobbles go to the NAS's LAN address
+(`http://192.168.0.105:3002`), not the public tunnel, so they still work with a VPN on the
+Shield (with the VPN's "allow LAN" option enabled). The tunnel rejects VPN exit IPs.
 
 All changes are tagged `// [FORK]` in-code for easy identification.
 
@@ -204,9 +206,12 @@ Keep this guard when an upstream merge touches either file. Real PRs against `de
 
 **`local.properties`** — add these two lines:
 ```
-SCROBBLE_API_URL=https://trakt.berek.xyz/api/scrobble/nuvio/
+SCROBBLE_API_URL=http://192.168.0.105:3002/api/scrobble/nuvio/
 SCROBBLE_API_KEY=<value from server .env>
 ```
+
+CI builds take the URL from the `SCROBBLE_API_URL` repo variable, which `build-apk.yml`
+writes over whatever the `LOCAL_PROPERTIES_BASE64` secret contains.
 
 **`local.dev.properties`** — add these two lines (used by debug builds):
 ```

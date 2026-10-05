@@ -28,6 +28,16 @@ jobs:
           LOCAL_PROPERTIES_BASE64: ${{ secrets.LOCAL_PROPERTIES_BASE64 }}
         run: printf '%s' "$LOCAL_PROPERTIES_BASE64" | base64 --decode > local.properties
 
+      - name: Override scrobble URL
+        # LAN address so scrobbles bypass a VPN on the Shield (tunnel traffic from a
+        # VPN exit IP is rejected by the Trakt source allowlist).
+        if: ${{ vars.SCROBBLE_API_URL != '' }}
+        env:
+          SCROBBLE_API_URL: ${{ vars.SCROBBLE_API_URL }}
+        run: |
+          sed -i '/^SCROBBLE_API_URL=/d' local.properties
+          printf '\nSCROBBLE_API_URL=%s\n' "$SCROBBLE_API_URL" >> local.properties
+
       - name: Restore release keystore
         # Explicit, stable release keystore stored as a secret. Signing with a fixed
         # cert is required for OTA installs — every build must share one signature or
