@@ -472,6 +472,7 @@ class PosterOptionsController @Inject constructor(
     }
 
     private suspend fun markSeriesWatched(item: MetaPreview) {
+<<<<<<< HEAD
         // [FORK] airedForBulkMark() drops announced-but-unaired episodes so a future season
         // is not pre-marked watched the moment it airs.
         val episodes = fetchSeriesEpisodes(item)
@@ -481,6 +482,12 @@ class PosterOptionsController @Inject constructor(
             watchProgressRepository.markAsCompleted(buildCompletedMovieProgress(item))
             return
         }
+=======
+        val episodes = fetchSeriesEpisodes(item).filter { it.season != null && it.episode != null && it.season != 0 }
+        // Without episodes the only mark left is a show-level one, which trackers answer by marking
+        // every episode watched. Fail instead so the optimistic badge is reverted.
+        check(episodes.isNotEmpty()) { "No episodes found for ${item.id}" }
+>>>>>>> upstream/dev
 
         val progressList = episodes.map { video ->
             WatchProgress(
