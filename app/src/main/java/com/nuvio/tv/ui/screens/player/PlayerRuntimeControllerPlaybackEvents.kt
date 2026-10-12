@@ -144,11 +144,10 @@ internal fun PlayerRuntimeController.resetPostPlayStateAfterPlaybackEnded() {
     // If auto-play is enabled and the user dismissed the card earlier,
     // still auto-play the next episode when playback ends naturally.
     val state = _uiState.value
-    if (state.postPlayDismissedForCurrentEpisode &&
-        streamAutoPlayNextEpisodeEnabledSetting &&
+    val autoPlayEligible = streamAutoPlayNextEpisodeEnabledSetting &&
         state.nextEpisode?.hasAired == true &&
         nextEpisodeVideo != null
-    ) {
+    if (autoPlayEligible && (state.postPlayDismissedForCurrentEpisode || state.postPlayMode == null)) {
         playNextEpisode()
         return
     }
