@@ -218,8 +218,7 @@ class PlayerRuntimeController(
     internal var currentVideoHash: String? = navigationArgs.videoHash
     internal var currentVideoSize: Long? = navigationArgs.videoSize
     internal var currentFilename: String? = navigationArgs.filename
-        ?: initialStreamUrl.substringBefore('?').substringAfterLast('/', "")
-            .takeIf { it.isNotBlank() && it.contains('.') }
+        ?: streamFilenameFromUrl(initialStreamUrl)
     internal var currentAddonName: String? = navigationArgs.addonName
     internal var currentAddonLogo: String? = navigationArgs.addonLogo
     internal var currentStreamDescription: String? = navigationArgs.streamDescription
@@ -424,6 +423,7 @@ class PlayerRuntimeController(
     internal var seekProgressSyncJob: Job? = null
     internal var frameRateProbeJob: Job? = null
     internal var frameRateProbeToken: Long = 0L
+    internal val afrPreflightGate = AfrPreflightGate()
     internal var hideAspectRatioIndicatorJob: Job? = null
     internal var hideStreamSourceIndicatorJob: Job? = null
     internal var hidePlayerEngineSwitchInfoJob: Job? = null
