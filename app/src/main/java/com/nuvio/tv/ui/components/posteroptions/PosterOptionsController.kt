@@ -477,10 +477,9 @@ class PosterOptionsController @Inject constructor(
         val episodes = fetchSeriesEpisodes(item)
             .filter { it.season != null && it.episode != null && it.season != 0 }
             .airedForBulkMark()
-        if (episodes.isEmpty()) {
-            watchProgressRepository.markAsCompleted(buildCompletedMovieProgress(item))
-            return
-        }
+        // Without episodes the only mark left is a show-level one, which trackers answer by marking
+        // every episode watched. Fail instead so the optimistic badge is reverted.
+        check(episodes.isNotEmpty()) { "No episodes found for ${item.id}" }
 
         val progressList = episodes.map { video ->
             WatchProgress(
