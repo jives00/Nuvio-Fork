@@ -354,7 +354,8 @@ internal fun SettingsRailButton(
     focusRequester: FocusRequester? = null,
     onFocused: () -> Unit = {},
     icon: ImageVector? = null,
-    rawIconRes: Int? = null
+    rawIconRes: Int? = null,
+    suppressSelectedVisual: Boolean = false
 ) {
     var isFocused by remember { mutableStateOf(false) }
     val zen = isFlatSettingsStyle()
@@ -364,6 +365,7 @@ internal fun SettingsRailButton(
     } else {
         modifier
     }
+    val showSelected = isSelected && !suppressSelectedVisual
 
     Card(
         onClick = onClick,
@@ -381,7 +383,7 @@ internal fun SettingsRailButton(
         colors = CardDefaults.colors(
             containerColor = when {
                 zen -> Color.Transparent
-                isSelected -> NuvioTheme.colors.BackgroundCard
+                showSelected -> NuvioTheme.colors.BackgroundCard
                 else -> NuvioTheme.colors.Background
             },
             focusedContainerColor = if (zen) settingsFocusFillColor() else NuvioTheme.colors.BackgroundCard
@@ -390,7 +392,7 @@ internal fun SettingsRailButton(
             CardDefaults.border(border = Border.None, focusedBorder = Border.None)
         } else {
             CardDefaults.border(
-                border = if (isSelected) Border(
+                border = if (showSelected) Border(
                     border = NuvioTheme.focusRing.border(NuvioTheme.spacing.hairline),
                     shape = RoundedCornerShape(SettingsPillRadius)
                 ) else Border.None,
@@ -432,7 +434,7 @@ internal fun SettingsRailButton(
                                 .height(16.dp)
                                 .clip(RoundedCornerShape(SettingsPillRadius))
                                 .background(
-                                    if (isSelected) NuvioTheme.colors.Secondary else Color.Transparent
+                                    if (showSelected) NuvioTheme.colors.Secondary else Color.Transparent
                                 )
                         )
                         Spacer(modifier = Modifier.width(NuvioTheme.spacing.md))
@@ -493,7 +495,8 @@ internal fun SettingsTopBarTab(
     onFocused: () -> Unit = {},
     icon: ImageVector? = null,
     rawIconRes: Int? = null,
-    onFocusedTabPositioned: ((LayoutCoordinates) -> Unit)? = null
+    onFocusedTabPositioned: ((LayoutCoordinates) -> Unit)? = null,
+    suppressSelectedVisual: Boolean = false
 ) {
     var isFocused by remember { mutableStateOf(false) }
     var tabCoordinates by remember { mutableStateOf<LayoutCoordinates?>(null) }
@@ -503,10 +506,11 @@ internal fun SettingsTopBarTab(
     } else {
         modifier
     }
+    val showSelected = isSelected && !suppressSelectedVisual
     val contentColor by animateColorAsState(
         targetValue = when {
             isFocused -> NuvioTheme.colors.OnSecondary
-            isSelected -> NuvioTheme.colors.TextPrimary
+            showSelected -> NuvioTheme.colors.TextPrimary
             else -> NuvioTheme.colors.TextSecondary
         },
         animationSpec = tween(durationMillis = 250, easing = FastOutSlowInEasing),
@@ -531,7 +535,7 @@ internal fun SettingsTopBarTab(
                 }
             },
         colors = CardDefaults.colors(
-            containerColor = if (isSelected) {
+            containerColor = if (showSelected) {
                 NuvioTheme.colors.Secondary.copy(alpha = 0.18f)
             } else {
                 Color.Transparent
@@ -571,7 +575,7 @@ internal fun SettingsTopBarTab(
             Text(
                 text = title,
                 style = MaterialTheme.typography.titleSmall.copy(
-                    fontWeight = if (isSelected || isFocused) FontWeight.SemiBold else FontWeight.Medium
+                    fontWeight = if (showSelected || isFocused) FontWeight.SemiBold else FontWeight.Medium
                 ),
                 color = contentColor,
                 maxLines = 1,
@@ -1030,7 +1034,8 @@ internal fun <T> SettingsMultiChoiceDialog(
     onDismiss: () -> Unit,
     subtitle: String? = null,
     width: Dp = 520.dp,
-    maxHeight: Dp = 420.dp
+    maxHeight: Dp = 420.dp,
+    maxSelections: Int? = null
 ) {
     val focusRequester = remember { FocusRequester() }
     val selected = remember(selectedValues) { mutableStateListOf<T>().also { it.addAll(selectedValues) } }
@@ -1074,7 +1079,7 @@ internal fun <T> SettingsMultiChoiceDialog(
                             onClick = {
                                 if (isSelected) {
                                     selected.remove(option.value)
-                                } else {
+                                } else if (maxSelections == null || selected.size < maxSelections) {
                                     selected.add(option.value)
                                 }
                             },
