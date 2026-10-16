@@ -105,6 +105,9 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import com.nuvio.tv.ui.screens.ambient.AmbientIdleController
+import com.nuvio.tv.ui.screens.ambient.AmbientModeHost
+import com.nuvio.tv.ui.screens.ambient.LocalAmbientIdleController
 import com.nuvio.tv.ui.components.LocalStartupLoadingState
 import com.nuvio.tv.ui.components.LocalStartupSplashEnabled
 import com.nuvio.tv.ui.components.StartupLoadingState
@@ -701,6 +704,7 @@ open class MainActivity : ComponentActivity() {
                     LocalLandscapePosterMode provides mainUiPrefs.landscapePosterMode,
                     LocalAlwaysBackdropWithLogo provides mainUiPrefs.alwaysBackdropWithLogo,
                     LocalMemberAccess provides mainUiPrefs.memberAccess,
+                    LocalAmbientIdleController provides ambientIdleController,
                     com.nuvio.tv.core.player.LocalTrailerPlayerPool provides trailerPlayerPool,
                     LocalSplashBackground provides splashBackground,
                     LocalStartupLoadingState provides startupLoadingState,
@@ -863,6 +867,7 @@ open class MainActivity : ComponentActivity() {
 
                     LaunchedEffect(actualRoute) {
                         optimisticRoute = null
+                        ambientIdleController.onInteraction()
                     }
 
                     // Auto-play next episode for EXTERNAL players: the tracker resolves the
@@ -1198,6 +1203,18 @@ open class MainActivity : ComponentActivity() {
                                     modifier = Modifier.fillMaxSize()
                                 )
                             }
+
+                            val isTrailerPlaying by trailerPlayerPool.isTrailerPlaying.collectAsState()
+                            LaunchedEffect(isTrailerPlaying) {
+                                if (!isTrailerPlaying) ambientIdleController.onInteraction()
+                            }
+                            AmbientModeHost(
+                                controller = ambientIdleController,
+                                allowed = currentRoute?.startsWith("player/") != true &&
+                                    autoNextOverlay == null &&
+                                    !isTrailerPlaying,
+                                onShown = { trailerPlayerPool.stop() }
+                            )
                         }
                     }
                 } 
@@ -1257,6 +1274,7 @@ open class MainActivity : ComponentActivity() {
 
     override fun onResume() {
         super.onResume()
+        ambientIdleController.dismiss()
         if (::jankStats.isInitialized) jankStats.isTrackingEnabled = true
         memberAccessRepository.refreshIfStale()
         lifecycleScope.launch {
@@ -1307,7 +1325,15 @@ open class MainActivity : ComponentActivity() {
     // and then immediately exiting the app).
     val longPressBackHeld = mutableStateOf(false)
 
+    private val ambientIdleController = AmbientIdleController()
+
+    override fun onUserInteraction() {
+        super.onUserInteraction()
+        ambientIdleController.onInteraction()
+    }
+
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
+        if (ambientIdleController.consumeKeyEvent(event)) return true
         if (event.keyCode == KeyEvent.KEYCODE_BACK) {
             if (longPressBackHeld.value) {
                 if (event.action == KeyEvent.ACTION_UP) longPressBackHeld.value = false

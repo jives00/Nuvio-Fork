@@ -10,6 +10,7 @@ import com.nuvio.tv.data.local.LibassRenderType
 import com.nuvio.tv.data.local.StreamAutoPlayMode
 import com.nuvio.tv.data.local.SubtitleStyleSettings
 import com.nuvio.tv.data.repository.SkipInterval
+import com.nuvio.tv.domain.model.EpisodeOptionsOverlayStyle
 import com.nuvio.tv.domain.model.MetaCastMember
 import com.nuvio.tv.domain.model.Stream
 import com.nuvio.tv.domain.model.Subtitle
@@ -141,6 +142,7 @@ data class PlayerUiState(
     val currentVideoId: String? = null,
     val currentEpisodeTitle: String? = null,
     val blurUnwatchedEpisodes: Boolean = false,
+    val episodeOptionsOverlayStyle: EpisodeOptionsOverlayStyle = EpisodeOptionsOverlayStyle.BLUR,
     val episodeWatchProgressMap: Map<Pair<Int, Int>, WatchProgress> = emptyMap(),
     val watchedEpisodeKeys: Set<Pair<Int, Int>> = emptySet(),
     val showEpisodeStreams: Boolean = false,
@@ -231,6 +233,12 @@ data class PlayerUiState(
     // from loading overlay, rebuffering indicator, and corner overlay.
     val hideTorrentStats: Boolean = true,
     val isLive: Boolean = false
+)
+
+internal fun PlayerUiState.clearFrameRateDetection(): PlayerUiState = copy(
+    detectedFrameRateRaw = 0f,
+    detectedFrameRate = 0f,
+    detectedFrameRateSource = null
 )
 
 data class PlaybackTimelineState(
