@@ -55,6 +55,10 @@ Any APK installed before this change was signed with a randomly-generated CI deb
 - `updater/` package — upstream owns this entirely; no fork changes inside it. If upstream changes `UpdateRepository.kt`, verify it still accepts non-prerelease releases (the `dto.draft || dto.prerelease` guard must remain or be removed).
 - `build.gradle.kts` — re-apply the `[FORK]` GITHUB_OWNER/REPO block after any merge that touches `defaultConfig`.
 - `build-apk.yml` — entirely fork-specific; no upstream equivalent. Will never conflict.
+- `sync-upstream.yml` — merges upstream `dev` (betas included) only while upstream's latest stable
+  release is still `1.0.0` (`BETA_UNTIL_STABLE_AFTER`). Once a newer stable ships, it merges only
+  stable release tags (`releases/latest`) and ignores betas. To follow betas again, set that value
+  to the current stable tag.
 
 ---
 

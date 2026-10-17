@@ -30,24 +30,34 @@ jobs:
       - name: Fetch upstream
         run: |
           git remote add upstream https://github.com/NuvioMedia/NuvioTV.git
-          git fetch upstream
+          git fetch upstream --tags
 
       - name: Check for new upstream commits
         id: check
+        env:
+          GH_TOKEN: ${{ github.token }}
+          # Follow upstream dev (betas included) while this is still upstream's
+          # latest stable release. Once a newer stable ships, merge only stable
+          # release tags from then on.
+          BETA_UNTIL_STABLE_AFTER: '1.0.0'
         run: |
-          BEHIND=$(git rev-list HEAD..upstream/dev --count 2>/dev/null || git rev-list HEAD..upstream/main --count)
-          echo "behind=${BEHIND}" >> "$GITHUB_OUTPUT"
-          if git rev-parse upstream/dev &>/dev/null; then
-            echo "upstream_branch=dev" >> "$GITHUB_OUTPUT"
+          STABLE=$(gh api repos/NuvioMedia/NuvioTV/releases/latest --jq .tag_name)
+          echo "Latest upstream stable: $STABLE"
+          if [ "$STABLE" = "$BETA_UNTIL_STABLE_AFTER" ]; then
+            TARGET="upstream/dev"
           else
-            echo "upstream_branch=main" >> "$GITHUB_OUTPUT"
+            TARGET="$STABLE"
           fi
+          BEHIND=$(git rev-list "HEAD..$TARGET" --count)
+          echo "Merge target: $TARGET ($BEHIND commits behind)"
+          echo "behind=${BEHIND}" >> "$GITHUB_OUTPUT"
+          echo "upstream_ref=${TARGET}" >> "$GITHUB_OUTPUT"
 
       - name: Attempt merge
         if: steps.check.outputs.behind != '0'
         id: merge
         run: |
-          if git merge "upstream/${{ steps.check.outputs.upstream_branch }}" --no-edit; then
+          if git merge "${{ steps.check.outputs.upstream_ref }}" --no-edit; then
             echo "success=true" >> "$GITHUB_OUTPUT"
           else
             echo "success=false" >> "$GITHUB_OUTPUT"
@@ -83,7 +93,7 @@ jobs:
 
           REMAINING=$(git diff --name-only --diff-filter=U)
           if [ -z "$REMAINING" ]; then
-            git commit -m "chore: merge upstream/${{ steps.check.outputs.upstream_branch }} (auto-resolved fork conflicts)"
+            git commit -m "chore: merge ${{ steps.check.outputs.upstream_ref }} (auto-resolved fork conflicts)"
             echo "resolved=true" >> "$GITHUB_OUTPUT"
           else
             echo "Still conflicting after auto-resolve: $REMAINING"
@@ -116,7 +126,7 @@ jobs:
           BRANCH="upstream-sync/conflict-$(date +%Y%m%d)"
           git push origin --delete "$BRANCH" 2>/dev/null || true
           git checkout -B "$BRANCH"
-          git merge "upstream/${{ steps.check.outputs.upstream_branch }}" --no-edit || true
+          git merge "${{ steps.check.outputs.upstream_ref }}" --no-edit || true
           git add -A
           git commit -m "chore: upstream sync conflict $(date +%Y-%m-%d) [needs manual resolution]"
           git push --force origin "$BRANCH"
