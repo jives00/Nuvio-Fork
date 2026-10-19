@@ -13,6 +13,7 @@ import com.nuvio.tv.data.local.PlayerSettings
 import com.nuvio.tv.data.local.SubtitleLanguageOption
 import com.nuvio.tv.data.local.SubtitleStyleSettings
 import com.nuvio.tv.data.local.displayName
+import com.nuvio.tv.ui.theme.NuvioPrimitives
 
 private val subtitleColors = listOf(
     Color.White,
@@ -30,14 +31,14 @@ private val subtitleBackgroundColors = listOf(
     Color.Transparent,
     Color.Black,
     Color(0x80000000),
-    Color(0xFF1A1A1A),
-    Color(0xFF2D2D2D)
+    NuvioPrimitives.neutral900,
+    NuvioPrimitives.neutral800
 )
 
 private val subtitleOutlineColors = listOf(
     Color.Black,
-    Color(0xFF1A1A1A),
-    Color(0xFF333333),
+    NuvioPrimitives.neutral900,
+    NuvioPrimitives.neutral750,
     Color.White
 )
 

@@ -655,6 +655,7 @@ private fun PlayerRuntimeController.applySelectedStreamState(
  */
 private fun PlayerRuntimeController.applyStreamMetadata(stream: Stream) {
     currentStreamBingeGroup = stream.behaviorHints?.bingeGroup
+    applyStreamAudioDelay(stream.behaviorHints?.audioDelayMs)
     currentVideoHash = stream.behaviorHints?.videoHash
     currentVideoSize = stream.behaviorHints?.videoSize
     streamSubtitles = stream.subtitles
@@ -757,7 +758,8 @@ private fun PlayerRuntimeController.persistSelectedStreamForReuse(
             videoSize = currentVideoSize,
             bingeGroup = stream.behaviorHints?.bingeGroup,
             contentLanguage = contentLanguage,
-            year = year
+            year = year,
+            audioDelayMs = stream.behaviorHints?.audioDelayMs
         )
     }
 }
@@ -784,7 +786,8 @@ private fun PlayerRuntimeController.persistTorrentStreamForReuse(stream: Stream)
             sources = stream.sources,
             bingeGroup = stream.behaviorHints?.bingeGroup,
             contentLanguage = contentLanguage,
-            year = year
+            year = year,
+            audioDelayMs = stream.behaviorHints?.audioDelayMs
         )
     }
 }

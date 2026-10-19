@@ -1548,7 +1548,7 @@
     <string name="profile_pin_overlay_change_verify_heading">Insira o PIN atual para alterar o de %1$s.</string>
     <string name="profile_pin_overlay_change_verify_support">Digite o PIN atual antes de definir um novo.</string>
     <string name="profile_pin_overlay_remove_verify_kicker">Verificação de segurança necessária.</string>
-    <string name="profile_pin_overlay_remove_verify_heading">Insira o PIN atual para remover o bloqueio.</string>
+    <string name="profile_pin_overlay_remove_verify_heading">Insira o PIN atual para remover o bloqueio de %1$s.</string>
     <string name="profile_pin_overlay_remove_verify_support">Digite o PIN atual para desativar esta proteção.</string>
     <string name="profile_pin_overlay_delete_verify_heading">Digite o PIN atual para excluir %1$s.</string>
     <string name="profile_pin_overlay_delete_verify_support">Digite o PIN de 4 dígitos antes de excluir este perfil.</string>
