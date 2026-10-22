@@ -784,7 +784,7 @@ class PlayerRuntimeController(
                         showAddonLogo = settings.showAddonLogo,
                         streamBadgePlacement = settings.badgePlacement,
                         playerBadgeFilters = if (settings.showInPlayer) {
-                            StreamBadgeMatcher.compile(settings.rules)
+                            StreamBadgeMatcher.compile(settings.rules.forPlayer(settings.playerBadgeSource))
                         } else {
                             emptyList()
                         }
