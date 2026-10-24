@@ -25,6 +25,7 @@ import com.nuvio.tv.data.repository.DirectScrobbleService
 import com.nuvio.tv.data.repository.SkipInterval
 import com.nuvio.tv.ui.screens.player.PlayerNextEpisodeRules
 import dagger.hilt.android.qualifiers.ApplicationContext
+import java.io.IOException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -1443,7 +1444,11 @@ class ExternalPlaybackTracker @Inject constructor(
             Log.d(TAG, "Saving progress: pos=${positionMs}ms, dur=${effectiveDuration}ms, " +
                 "content=${metadata.contentId}, video=${metadata.videoId}, " +
                 "progressPct=${progress.progressPercentage}, isInProgress=${progress.isInProgress()}")
-            watchProgressRepository.saveProgress(progress, metadata.profileId)
+            try {
+                watchProgressRepository.saveProgress(progress, metadata.profileId)
+            } catch (error: IOException) {
+                Log.w(TAG, "Watch progress could not be saved", error)
+            }
 
             val progressPercent = if (effectiveDuration > 0L) {
                 (positionMs.toFloat() / effectiveDuration.toFloat() * 100f).coerceIn(0f, 100f)
