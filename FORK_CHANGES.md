@@ -28,7 +28,7 @@ buildConfigField("String", "GITHUB_REPO", "\"Nuvio-Fork\"")
 
 Replaced the artifact-only workflow with one that publishes a proper GitHub Release:
 - Decodes `FORK_DEBUG_KEYSTORE_BASE64` secret to `~/.android/debug.keystore` before building so the signing cert stays consistent across builds (required — mismatched certs block OTA installation)
-- Reads `versionName` from `build.gradle.kts` and uses it as the release tag
+- Reads `versionName` from `build.gradle.kts` and uses it as the release tag. The fork's versionName is upstream's plus `+fork` (e.g. `1.1.0-beta.12+fork`), applied by `scripts/resolve_upstream_conflict.py`. It must be `+` (semver build metadata, which the updater ignores), never `-`: until 2026-11-07 it was `-fork`, which made the last prerelease part non-numeric, so `VersionUtils` compared `9-fork` vs `11-fork` as strings and ranked beta.9 above beta.10–12. The old `1.1.0-beta.*-fork` releases were deleted so they can't outrank the `+fork` ones the same way.
 - Creates a non-prerelease GitHub Release with the APK attached (the in-app updater skips `prerelease: true` releases, so non-prerelease is required)
 - Sends the release URL in the notification email (no GitHub login required to download)
 

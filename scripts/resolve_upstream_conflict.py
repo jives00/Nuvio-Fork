@@ -3,7 +3,10 @@ Resolves known fork-vs-upstream conflicts in app/build.gradle.kts.
 
 Rules:
 - GITHUB_OWNER / GITHUB_REPO: always keep ours (fork updater target)
-- versionCode / versionName: take upstream's numbers, append -fork to versionName
+- versionCode / versionName: take upstream's numbers, append +fork to versionName.
+  Must be "+" (semver build metadata, ignored when comparing), never "-": a
+  "-fork" suffix makes the last prerelease part non-numeric, so the updater
+  compared "9-fork" vs "11-fork" as strings and ranked beta.9 above beta.11.
 - Everything else: take upstream's version
 """
 import re
@@ -28,7 +31,7 @@ def resolve_block(match):
     if "versionCode" in theirs or "versionName" in theirs:
         resolved = re.sub(
             r'(versionName\s*=\s*")([^"]+)(")',
-            lambda m: m.group(1) + m.group(2).removesuffix("-fork") + "-fork" + m.group(3),
+            lambda m: m.group(1) + m.group(2).removesuffix("-fork").removesuffix("+fork") + "+fork" + m.group(3),
             theirs,
         )
         return resolved
